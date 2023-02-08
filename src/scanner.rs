@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-
-
 fn is_digit(ch: char) -> bool {
     let uch = ch as u8;
     uch >= '0' as u8 && uch <= '9' as u8
@@ -126,7 +124,16 @@ impl Scanner {
             }
             ' ' | '\r' | '\t' => {}
             '\n' => self.line += 1,
-            _ => todo!(),
+            '"' => self.string()?,
+            c => {
+                if is_digit(c) {
+                    self.number()?
+                } else if is_alpha(c) {
+                    self.identifier()
+                } else {
+                    return Err(format!("Unrecognized char at line {}: {}", self.line, c));
+                }
+            }
         }
 
         Ok(())
@@ -175,6 +182,74 @@ impl Scanner {
             '\0'
         } else {
             self.source.chars().nth(self.current).unwrap()
+        }
+    }
+
+    fn peek_next(&self) -> char {
+        if self.current + 1 >= self.source.len() {
+            return '\0';
+        }
+        self.source.chars().nth(self.current + 1).unwrap()
+    }
+
+    fn string(&mut self) -> Result<(), String> {
+        while self.peek() != '"' && self.is_at_end() {
+            if self.peek() == '\n' {
+                self.line += 1;
+            }
+            self.advance();
+        }
+
+        if self.is_at_end() {
+            return Err("Unterminated string".to_string());
+        }
+
+        self.advance();
+
+        let value = &self.source[self.start + 1..self.current - 1];
+
+        self.add_token_lit(
+            TokenType::StringLit,
+            Some(LiteralValue::StringValue(value.to_string())),
+        );
+
+        Ok(())
+    }
+
+    fn number(&mut self) -> Result<(), String> {
+        while is_digit(self.peek()) {
+            self.advance();
+        }
+
+        if self.peek() == '.' && is_digit(self.peek_next()) {
+            self.advance();
+
+            while is_digit(self.peek()) {
+                self.advance();
+            }
+        }
+        let substring = &self.source[self.start..self.current];
+        let value = substring.parse::<f64>();
+
+        match value {
+            Ok(value) => self.add_token_lit(TokenType::Number, Some(LiteralValue::FValue(value))),
+            Err(_) => return Err(format!("Could not parse number: {}", substring)),
+        }
+
+        Ok(())
+    }
+
+    fn identifier(&mut self) {
+        while is_alphanumeric(self.peek()) {
+            self.advance();
+        }
+
+        let substring = &self.source[self.start..self.current];
+
+        if let Some(&t_type) = self.keywords.get(substring) {
+            self.add_token(t_type);
+        } else {
+            self.add_token(TokenType::Identifier);
         }
     }
 }
