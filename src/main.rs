@@ -15,9 +15,9 @@ fn run_file(path: &str) -> Result<(), String> {
 
 fn run(contents: &str) -> Result<(), String> {
     let mut scanner = Scanner::new(contents);
-    let tokens = scanner.scan_tokens();
+    let tokens = scanner.scan_tokens()?;
 
-    for token in tokens.unwrap() {
+    for token in tokens {
         println!("{:?}", token)
     }
     Ok(())
@@ -39,9 +39,11 @@ fn run_prompt() -> Result<(), String> {
                 }
             }
         }
-        if buffer.trim() == ".exit".to_string() {
+        let value = buffer.trim();
+        if value == ".exit".to_string() {
             break;
         }
+        run(&value).unwrap();
     }
     Ok(())
 }

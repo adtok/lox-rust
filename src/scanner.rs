@@ -128,6 +128,8 @@ impl Scanner {
                     while self.peek() != '\n' && !self.is_at_end() {
                         self.advance();
                     }
+                } else if self.char_match('*') {
+                    todo!("Add support for multiline comments")
                 } else {
                     self.add_token(TokenType::Slash)
                 }
@@ -203,7 +205,7 @@ impl Scanner {
     }
 
     fn string(&mut self) -> Result<(), String> {
-        while self.peek() != '"' && self.is_at_end() {
+        while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
             }
@@ -217,6 +219,7 @@ impl Scanner {
         self.advance();
 
         let value = &self.source[self.start + 1..self.current - 1];
+        println!("{}", value);
 
         self.add_token_lit(
             TokenType::StringLit,
