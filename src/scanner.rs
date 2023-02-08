@@ -1,10 +1,6 @@
-pub struct Scanner {
-    source: String,
-    tokens: Vec<Token>,
-    start: usize,
-    current: usize,
-    line: usize,
-}
+use std::collections::HashMap;
+
+
 
 fn is_digit(ch: char) -> bool {
     let uch = ch as u8;
@@ -18,6 +14,36 @@ fn is_alpha(ch: char) -> bool {
 
 fn is_alphanumeric(ch: char) -> bool {
     is_alpha(ch) || is_digit(ch)
+}
+
+fn get_keywords_hashmap() -> HashMap<&'static str, TokenType> {
+    HashMap::from([
+        ("and", TokenType::And),
+        ("class", TokenType::Class),
+        ("else", TokenType::Else),
+        ("false", TokenType::False),
+        ("for", TokenType::For),
+        ("if", TokenType::If),
+        ("nil", TokenType::Nil),
+        ("or", TokenType::Or),
+        ("print", TokenType::Print),
+        ("return", TokenType::Return),
+        ("super", TokenType::Super),
+        ("this", TokenType::This),
+        ("true", TokenType::True),
+        ("var", TokenType::Var),
+        ("while", TokenType::While),
+    ])
+}
+
+pub struct Scanner {
+    source: String,
+    tokens: Vec<Token>,
+    start: usize,
+    current: usize,
+    line: usize,
+
+    keywords: HashMap<&'static str, TokenType>,
 }
 
 impl Scanner {
@@ -216,7 +242,7 @@ pub enum TokenType {
 
     // Literals
     Identifier,
-    String,
+    StringLit,
     Number,
 
     // Keywords.
@@ -234,6 +260,7 @@ pub enum TokenType {
     Super,
     This,
     True,
+    Var,
     While,
 
     Eof,
