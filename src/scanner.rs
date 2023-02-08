@@ -6,6 +6,20 @@ pub struct Scanner {
     line: usize,
 }
 
+fn is_digit(ch: char) -> bool {
+    let uch = ch as u8;
+    uch >= '0' as u8 && uch <= '9' as u8
+}
+
+fn is_alpha(ch: char) -> bool {
+    let uch = ch as u8;
+    (uch >= 'a' as u8 && uch <= 'z' as u8) || (uch >= 'A' as u8 && uch <= 'Z' as u8) || (ch == '_')
+}
+
+fn is_alphanumeric(ch: char) -> bool {
+    is_alpha(ch) || is_digit(ch)
+}
+
 impl Scanner {
     pub fn new(source: &str) -> Self {
         Self {
