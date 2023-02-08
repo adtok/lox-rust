@@ -1,11 +1,35 @@
 use std::env;
+use std::fs;
+use std::io;
+use std::io::Write;
+use std::process::exit;
 
-fn run_file(file: &str) {
-    println!("Running file {}...", file);
+fn run_file(path: &str) -> Result<(), String> {
+    match fs::read_to_string(path) {
+        Err(msg) => return Err(msg.to_string()),
+        Ok(contents) => return run(&contents),
+    }
 }
 
-fn run_prompt() {
-    println!("Running repl");
+fn run(_contents: &str) -> Result<(), String> {
+    todo!()
+}
+
+fn run_prompt() -> Result<(), String> {
+    loop {
+        print!("> ");
+        io::stdout().flush().expect("Should not fail.");
+        let mut buffer = String::new();
+        let stdin = io::stdin();
+        match stdin.read_line(&mut buffer) {
+            Err(msg) => return Err(msg.to_string()),
+            Ok(_) => println!("You wrote: {}", buffer.trim()),
+        }
+        if buffer.trim() == ".exit".to_string() {
+            break;
+        }
+    }
+    Ok(())
 }
 
 fn main() {
@@ -13,9 +37,16 @@ fn main() {
 
     if args.len() > 2 {
         println!("Usage: lox [script]");
+        exit(64)
     } else if args.len() == 2 {
-        run_file(&args[1]);
+        match run_file(&args[1]) {
+            Ok(_) => exit(0),
+            Err(msg) => panic!("Error\n{}", msg),
+        }
     } else {
-        run_prompt();
+        match run_prompt() {
+            Ok(_) => exit(0),
+            Err(msg) => panic!("Error:\n{}", msg),
+        }
     }
 }
