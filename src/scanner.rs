@@ -52,6 +52,7 @@ impl Scanner {
             start: 0,
             current: 0,
             line: 1,
+            keywords: get_keywords_hashmap(),
         }
     }
 
