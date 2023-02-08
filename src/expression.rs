@@ -59,12 +59,51 @@ impl Expr {
             } => {
                 let operator_str = operator.lexeme.clone();
                 let expression_str = (*expression).to_string();
-                format!("({} {}", operator_str, expression_str)
+                format!("({} {})", operator_str, expression_str)
             }
         }
     }
 
     pub fn print(&self) {
         println!("{}", self.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pretty_print_ast() {
+        let minus_token = Token {
+            token_type: TokenType::Minus,
+            lexeme: String::from("-"),
+            literal: None,
+            line: 0,
+        };
+        let onetwothree = Expr::Literal {
+            value: LiteralValue::Number(123.0),
+        };
+        let group = Expr::Grouping {
+            expression: Box::from(Expr::Literal {
+                value: LiteralValue::Number(45.67),
+            }),
+        };
+        let multi = Token {
+            token_type: TokenType::Star,
+            lexeme: String::from("*"),
+            literal: None,
+            line: 0,
+        };
+        let ast = Expr::Binary {
+            left: Box::from(Expr::Unary {
+                operator: minus_token,
+                expression: Box::from(onetwothree),
+            }),
+            operator: multi,
+            right: Box::from(group),
+        };
+        let result = ast.to_string();
+        assert_eq!(result, "(* (- 123) (group 45.67))")
     }
 }
