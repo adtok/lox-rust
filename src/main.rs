@@ -1,3 +1,5 @@
+mod scanner;
+use crate::scanner::*;
 use std::env;
 use std::fs;
 use std::io;
@@ -11,11 +13,18 @@ fn run_file(path: &str) -> Result<(), String> {
     }
 }
 
-fn run(_contents: &str) -> Result<(), String> {
-    todo!()
+fn run(contents: &str) -> Result<(), String> {
+    let scanner = Scanner::new(contents);
+    let tokens = scanner.scan_tokens();
+
+    for token in tokens.unwrap() {
+        println!("{:?}", token)
+    }
+    Ok(())
 }
 
 fn run_prompt() -> Result<(), String> {
+    println!("Entering Lox repl... Ctrl + D or `.exit` to exit.");
     loop {
         print!("> ");
         io::stdout().flush().expect("Should not fail.");
@@ -23,7 +32,12 @@ fn run_prompt() -> Result<(), String> {
         let stdin = io::stdin();
         match stdin.read_line(&mut buffer) {
             Err(msg) => return Err(msg.to_string()),
-            Ok(_) => println!("You wrote: {}", buffer.trim()),
+            Ok(value) => {
+                if value == 0 {
+                    println!("\nClosing...");
+                    exit(0)
+                }
+            }
         }
         if buffer.trim() == ".exit".to_string() {
             break;
