@@ -69,6 +69,15 @@ impl Scanner {
         self.tokens
             .push(Token::new(TokenType::Eof, "".to_string(), None, self.line));
 
+        if errors.len() > 0 {
+            let mut joined = String::new();
+            for error in errors {
+                joined.push_str(&error);
+                joined.push_str("\n");
+            }
+            return Err(joined);
+        }
+
         Ok(self.tokens.clone())
     }
 
