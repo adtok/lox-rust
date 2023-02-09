@@ -1,6 +1,9 @@
 use std::fmt::Display;
 
-use crate::scanner::{self, Token, TokenType};
+use crate::{
+    environment::{self, Environment},
+    scanner::{self, Token, TokenType},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiteralValue {
@@ -76,7 +79,12 @@ impl LiteralValue {
     }
 }
 
+#[derive(Debug)]
 pub enum Expr {
+    Assign {
+        name: Token,
+        value: Box<Expr>,
+    },
     Binary {
         left: Box<Expr>,
         operator: Token,
@@ -92,11 +100,17 @@ pub enum Expr {
         operator: Token,
         right: Box<Expr>,
     },
+    Variable {
+        name: Token,
+    },
 }
 
 impl Expr {
     pub fn to_string(&self) -> String {
         match self {
+            Expr::Assign { name, value } => {
+                format!("({name:?} = {}", value.to_string())
+            }
             Expr::Binary {
                 left,
                 right,
@@ -117,6 +131,7 @@ impl Expr {
                 let expression_str = (*expression).to_string();
                 format!("({} {})", operator_str, expression_str)
             }
+            Expr::Variable { name } => format!("(var {})", name.lexeme),
         }
     }
 
@@ -124,12 +139,20 @@ impl Expr {
         println!("{}", self.to_string());
     }
 
-    pub fn evaluate(&self) -> Result<LiteralValue, String> {
+    pub fn evaluate(&self, environment: &mut Environment) -> Result<LiteralValue, String> {
         match self {
+            Expr::Assign { name, value } => match environment.get(&name.lexeme) {
+                Some(_) => {
+                    let new_value = (*value).evaluate(environment)?;
+                    environment.define(name.lexeme.clone(), new_value.clone());
+                    Ok(new_value)
+                }
+                None => Err(format!("Variable {name:?} has not been declared.")),
+            },
             Expr::Literal { value } => Ok(value.clone()),
-            Expr::Grouping { expression } => expression.evaluate(),
+            Expr::Grouping { expression } => expression.evaluate(environment),
             Expr::Unary { operator, right } => {
-                let expr = right.evaluate()?;
+                let expr = right.evaluate(environment)?;
 
                 match (&expr, operator.token_type) {
                     (LiteralValue::Number(x), TokenType::Minus) => Ok(LiteralValue::Number(-x)),
@@ -146,8 +169,8 @@ impl Expr {
                 operator,
                 right,
             } => {
-                let expr_l = left.evaluate()?;
-                let expr_r = right.evaluate()?;
+                let expr_l = left.evaluate(environment)?;
+                let expr_r = right.evaluate(environment)?;
 
                 match (&expr_l, operator.token_type, &expr_r) {
                     (LiteralValue::Number(x), TokenType::Plus, LiteralValue::Number(y)) => {
@@ -210,6 +233,10 @@ impl Expr {
                     (x, tt, y) => Err(format!("{} is not supported for {:?} and {:?}", tt, x, y)),
                 }
             }
+            Expr::Variable { name } => match environment.get(&name.lexeme) {
+                Some(value) => Ok(value.clone()),
+                None => Err(format!("Variable {} has not been declared.", name.lexeme)),
+            },
         }
     }
 }
