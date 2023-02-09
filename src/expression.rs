@@ -205,6 +205,8 @@ impl Expr {
                         TokenType::LessEqual,
                         LiteralValue::StringValue(s2),
                     ) => Ok(LiteralValue::from_bool(s1 <= s2)),
+                    (x, TokenType::BangEqual, y) => Ok(LiteralValue::from_bool(x != y)),
+                    (x, TokenType::EqualEqual, y) => Ok(LiteralValue::from_bool(x == y)),
                     (x, tt, y) => Err(format!("{} is not supported for {:?} and {:?}", tt, x, y)),
                 }
             }
