@@ -219,7 +219,6 @@ impl Scanner {
         self.advance();
 
         let value = &self.source[self.start + 1..self.current - 1];
-        println!("{}", value);
 
         self.add_token_lit(
             TokenType::StringLit,

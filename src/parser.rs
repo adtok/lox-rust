@@ -13,6 +13,10 @@ impl Parser {
         Self { tokens, current: 0 }
     }
 
+    pub fn parse(&mut self) -> Result<Expr, String> {
+        self.expression()
+    }
+
     fn expression(&mut self) -> Result<Expr, String> {
         self.equality()
     }
@@ -111,31 +115,46 @@ impl Parser {
                     expression: Box::from(expr),
                 }
             }
+            TokenType::False
+            | TokenType::True
+            | TokenType::Nil
+            | TokenType::Number
+            | TokenType::StringLit => {
+                self.advance();
+                Expr::Literal {
+                    value: LiteralValue::from_token(token),
+                }
+            }
             _ => return Err(String::from("Expected an expression.")),
         };
 
         Ok(result)
     }
 
-    fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<(), String> {
-        Ok(())
+    fn consume(&mut self, token_type: TokenType, message: &str) -> Result<Token, String> {
+        if self.check(token_type) {
+            Ok(self.advance())
+        } else {
+            Err(String::from(message))
+        }
     }
 
-    fn check(&mut self, token_type: TokenType) -> bool {
+    fn check(&self, token_type: TokenType) -> bool {
         if self.is_at_end() {
             false
         } else {
-            if self.peek().token_type == token_type {
-                self.advance();
-                true
-            } else {
-                false
-            }
+            self.peek().token_type == token_type
         }
     }
 
     fn match_tokens(&mut self, types: &[TokenType]) -> bool {
-        types.iter().any(|t| self.check(*t))
+        for t in types {
+            if self.check(*t) {
+                self.advance();
+                return true;
+            }
+        }
+        false
     }
 
     fn advance(&mut self) -> Token {
@@ -155,6 +174,29 @@ impl Parser {
     }
 
     fn is_at_end(&self) -> bool {
-        todo!()
+        self.peek().token_type == TokenType::Eof
+    }
+
+    fn synchronize(&mut self) {
+        self.advance();
+
+        while !self.is_at_end() {
+            if self.previous().token_type == TokenType::Semicolon {
+                return;
+            }
+            match self.peek().token_type {
+                TokenType::Class
+                | TokenType::Fun
+                | TokenType::Var
+                | TokenType::For
+                | TokenType::If
+                | TokenType::While
+                | TokenType::Print
+                | TokenType::Return => return,
+                _ => (),
+            }
+
+            self.advance();
+        }
     }
 }

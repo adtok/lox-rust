@@ -1,4 +1,6 @@
-use crate::scanner::{Token, TokenType};
+use std::fmt::Display;
+
+use crate::scanner::{self, Token, TokenType};
 
 pub enum LiteralValue {
     Number(f64),
@@ -9,6 +11,31 @@ pub enum LiteralValue {
 }
 
 impl LiteralValue {
+    pub fn from_token(token: Token) -> Self {
+        match token.token_type {
+            TokenType::Number => {
+                let value = match token.literal {
+                    Some(scanner::LiteralValue::IntValue(x)) => x as f64,
+                    Some(scanner::LiteralValue::FValue(x)) => x as f64,
+                    _ => panic!("Cannot be unwrapped as float"),
+                };
+                Self::Number(value)
+            }
+            TokenType::StringLit => {
+                let value = match token.literal {
+                    Some(scanner::LiteralValue::StringValue(s)) => s.clone(),
+                    Some(scanner::LiteralValue::IdentiferValue(s)) => s.clone(),
+                    _ => panic!("Cannot be unwrapped as String"),
+                };
+                Self::StringValue(value)
+            }
+            TokenType::False => Self::False,
+            TokenType::Nil => Self::Nil,
+            TokenType::True => Self::True,
+            _ => panic!("Could not create LiteralValue from {:?}", token),
+        }
+    }
+
     pub fn to_string(&self) -> String {
         match self {
             LiteralValue::Number(x) => x.to_string(),
@@ -64,8 +91,8 @@ impl Expr {
         }
     }
 
-    pub fn print(&self) {
-        println!("{}", self.to_string())
+    pub fn print_ast(&self) {
+        println!("{}", self.to_string());
     }
 }
 

@@ -1,6 +1,8 @@
 mod expression;
 mod parser;
 mod scanner;
+use parser::Parser;
+
 use crate::scanner::*;
 use std::env;
 use std::fs;
@@ -19,9 +21,11 @@ fn run(contents: &str) -> Result<(), String> {
     let mut scanner = Scanner::new(contents);
     let tokens = scanner.scan_tokens()?;
 
-    for token in tokens {
-        println!("{:?}", token)
-    }
+    let mut parser = Parser::new(tokens);
+    let expression = parser.parse()?;
+
+    expression.print_ast();
+
     Ok(())
 }
 
@@ -45,7 +49,7 @@ fn run_prompt() -> Result<(), String> {
         if value == ".exit".to_string() {
             break;
         }
-        run(&value).unwrap();
+        run(&value)?;
     }
     Ok(())
 }
