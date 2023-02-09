@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use crate::scanner::{self, Token, TokenType};
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum LiteralValue {
     Number(f64),
     StringValue(String),
@@ -36,6 +37,14 @@ impl LiteralValue {
         }
     }
 
+    pub fn from_bool(boolean: bool) -> Self {
+        if boolean {
+            Self::True
+        } else {
+            Self::False
+        }
+    }
+
     pub fn to_string(&self) -> String {
         match self {
             LiteralValue::Number(x) => x.to_string(),
@@ -43,6 +52,26 @@ impl LiteralValue {
             LiteralValue::True => String::from("true"),
             LiteralValue::False => String::from("false"),
             LiteralValue::Nil => String::from("nil"),
+        }
+    }
+
+    pub fn to_type(&self) -> &str {
+        match self {
+            LiteralValue::Number(_) => "Number",
+            LiteralValue::StringValue(_) => "String",
+            LiteralValue::True => "Boolean",
+            LiteralValue::False => "Boolean",
+            LiteralValue::Nil => "nil",
+        }
+    }
+
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            LiteralValue::Number(x) => *x == 0.0 as f64,
+            LiteralValue::StringValue(s) => s.len() == 0,
+            LiteralValue::True => true,
+            LiteralValue::False => false,
+            LiteralValue::Nil => false,
         }
     }
 }
@@ -61,7 +90,7 @@ pub enum Expr {
     },
     Unary {
         operator: Token,
-        expression: Box<Expr>,
+        right: Box<Expr>,
     },
 }
 
@@ -82,7 +111,7 @@ impl Expr {
             Expr::Literal { value } => format!("{}", value.to_string()),
             Expr::Unary {
                 operator,
-                expression,
+                right: expression,
             } => {
                 let operator_str = operator.lexeme.clone();
                 let expression_str = (*expression).to_string();
@@ -93,6 +122,93 @@ impl Expr {
 
     pub fn print_ast(&self) {
         println!("{}", self.to_string());
+    }
+
+    pub fn evaluate(&self) -> Result<LiteralValue, String> {
+        match self {
+            Expr::Literal { value } => Ok(value.clone()),
+            Expr::Grouping { expression } => expression.evaluate(),
+            Expr::Unary { operator, right } => {
+                let expr = right.evaluate()?;
+
+                match (&expr, operator.token_type) {
+                    (LiteralValue::Number(x), TokenType::Minus) => Ok(LiteralValue::Number(-x)),
+                    (_, TokenType::Minus) => Err(format!(
+                        "Minus operator not implemented for {}.",
+                        expr.to_type()
+                    )),
+                    (value, TokenType::Bang) => Ok(LiteralValue::from_bool(!value.is_truthy())),
+                    (_, token_type) => Err(format!("{} is not a valid unary operator", token_type)),
+                }
+            }
+            Expr::Binary {
+                left,
+                operator,
+                right,
+            } => {
+                let expr_l = left.evaluate()?;
+                let expr_r = right.evaluate()?;
+
+                match (&expr_l, operator.token_type, &expr_r) {
+                    (LiteralValue::Number(x), TokenType::Plus, LiteralValue::Number(y)) => {
+                        Ok(LiteralValue::Number(x + y))
+                    }
+                    (LiteralValue::Number(x), TokenType::Minus, LiteralValue::Number(y)) => {
+                        Ok(LiteralValue::Number(x - y))
+                    }
+                    (LiteralValue::Number(x), TokenType::Star, LiteralValue::Number(y)) => {
+                        Ok(LiteralValue::Number(x * y))
+                    }
+                    (LiteralValue::Number(x), TokenType::Slash, LiteralValue::Number(y)) => {
+                        Ok(LiteralValue::Number(x / y))
+                    }
+                    (LiteralValue::Number(x), TokenType::Greater, LiteralValue::Number(y)) => {
+                        Ok(LiteralValue::from_bool(x > y))
+                    }
+                    (LiteralValue::Number(x), TokenType::GreaterEqual, LiteralValue::Number(y)) => {
+                        Ok(LiteralValue::from_bool(x >= y))
+                    }
+                    (LiteralValue::Number(x), TokenType::Less, LiteralValue::Number(y)) => {
+                        Ok(LiteralValue::from_bool(x < y))
+                    }
+                    (LiteralValue::Number(x), TokenType::LessEqual, LiteralValue::Number(y)) => {
+                        Ok(LiteralValue::from_bool(x <= y))
+                    }
+                    (LiteralValue::Number(_), tt, LiteralValue::StringValue(_)) => {
+                        Err(format!("{} is not supported for String and Number", tt))
+                    }
+                    (LiteralValue::StringValue(_), tt, LiteralValue::Number(_)) => {
+                        Err(format!("{} is not supported for String and Number", tt))
+                    }
+                    (
+                        LiteralValue::StringValue(s1),
+                        TokenType::Plus,
+                        LiteralValue::StringValue(s2),
+                    ) => Ok(LiteralValue::StringValue(format!("{}{}", s1, s2))),
+                    (
+                        LiteralValue::StringValue(s1),
+                        TokenType::Greater,
+                        LiteralValue::StringValue(s2),
+                    ) => Ok(LiteralValue::from_bool(s1 > s2)),
+                    (
+                        LiteralValue::StringValue(s1),
+                        TokenType::GreaterEqual,
+                        LiteralValue::StringValue(s2),
+                    ) => Ok(LiteralValue::from_bool(s1 >= s2)),
+                    (
+                        LiteralValue::StringValue(s1),
+                        TokenType::Less,
+                        LiteralValue::StringValue(s2),
+                    ) => Ok(LiteralValue::from_bool(s1 < s2)),
+                    (
+                        LiteralValue::StringValue(s1),
+                        TokenType::LessEqual,
+                        LiteralValue::StringValue(s2),
+                    ) => Ok(LiteralValue::from_bool(s1 <= s2)),
+                    (x, tt, y) => Err(format!("{} is not supported for {:?} and {:?}", tt, x, y)),
+                }
+            }
+        }
     }
 }
 
@@ -125,7 +241,7 @@ mod tests {
         let ast = Expr::Binary {
             left: Box::from(Expr::Unary {
                 operator: minus_token,
-                expression: Box::from(onetwothree),
+                right: Box::from(onetwothree),
             }),
             operator: multi,
             right: Box::from(group),

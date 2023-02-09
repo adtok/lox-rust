@@ -96,7 +96,7 @@ impl Parser {
             let right = self.unary()?;
             Ok(Expr::Unary {
                 operator: operator,
-                expression: Box::from(right),
+                right: Box::from(right),
             })
         } else {
             self.primary()
