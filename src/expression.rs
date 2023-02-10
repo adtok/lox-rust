@@ -1,7 +1,5 @@
-use std::fmt::Display;
-
 use crate::{
-    environment::{self, Environment},
+    environment::Environment,
     scanner::{self, Token, TokenType},
 };
 
@@ -135,20 +133,17 @@ impl Expr {
         }
     }
 
-    pub fn print_ast(&self) {
-        println!("{}", self.to_string());
-    }
-
     pub fn evaluate(&self, environment: &mut Environment) -> Result<LiteralValue, String> {
         match self {
-            Expr::Assign { name, value } => match environment.get(&name.lexeme) {
-                Some(_) => {
-                    let new_value = (*value).evaluate(environment)?;
-                    environment.define(name.lexeme.clone(), new_value.clone());
+            Expr::Assign { name, value } => {
+                let new_value = (*value).evaluate(environment)?;
+                let success = environment.assign(&name.lexeme, new_value.clone());
+                if success {
                     Ok(new_value)
+                } else {
+                    Err(format!("Variable {} has not been declared.", name.lexeme))
                 }
-                None => Err(format!("Variable {name:?} has not been declared.")),
-            },
+            }
             Expr::Literal { value } => Ok(value.clone()),
             Expr::Grouping { expression } => expression.evaluate(environment),
             Expr::Unary { operator, right } => {

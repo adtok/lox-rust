@@ -61,7 +61,7 @@ impl Parser {
         let expr = self.equality()?;
 
         if self.check(TokenType::Equal) {
-            let _equals = self.previous();
+            let equals = self.previous();
             let value = self.assignment()?;
 
             match expr {
@@ -69,7 +69,7 @@ impl Parser {
                     name: name,
                     value: Box::from(value),
                 }),
-                _ => Err(String::from("Invalid assignment target")),
+                _ => Err(format!("{:?}: Invalid Assignment target", equals)),
             }
         } else {
             Ok(expr)
