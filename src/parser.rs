@@ -299,3 +299,75 @@ impl Parser {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scanner::{LiteralValue, Scanner, Token, TokenType};
+
+    #[test]
+    fn test_addition() {
+        let one = Token {
+            token_type: TokenType::Number,
+            lexeme: String::from("1"),
+            literal: Some(LiteralValue::IntValue(1)),
+            line: 0,
+        };
+        let plus = Token {
+            token_type: TokenType::Plus,
+            lexeme: String::from("+".to_string()),
+            literal: None,
+            line: 0,
+        };
+        let two = Token {
+            token_type: TokenType::Number,
+            lexeme: String::from("2"),
+            literal: Some(LiteralValue::IntValue(2)),
+            line: 0,
+        };
+        let semicolon = Token {
+            token_type: TokenType::Semicolon,
+            lexeme: String::from(";"),
+            literal: None,
+            line: 0,
+        };
+        let eof = Token {
+            token_type: TokenType::Eof,
+            lexeme: String::from(""),
+            literal: None,
+            line: 0,
+        };
+
+        let tokens = vec![one, plus, two, semicolon, eof];
+        let mut parser = Parser::new(tokens);
+
+        let parsed_expr = parser.parse().unwrap();
+        let string_expr = parsed_expr[0].to_string();
+
+        assert_eq!(string_expr, "(+ 1 2)");
+    }
+
+    #[test]
+    fn test_comparison() {
+        let source = "1 + 1 == 5 + 7;";
+        let mut scanner = Scanner::new(source);
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let parsed_expr = parser.parse().unwrap();
+        let string_expr = parsed_expr[0].to_string();
+
+        assert_eq!(string_expr, "(== (+ 1 1) (+ 5 7))");
+    }
+
+    #[test]
+    fn test_comparison_with_parens() {
+        let source = "1 >= (3 + 4);";
+        let mut scanner = Scanner::new(source);
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let parsed_expr = parser.parse().unwrap();
+        let string_expr = parsed_expr[0].to_string();
+
+        assert_eq!(string_expr, "(>= 1 (group (+ 3 4)))");
+    }
+}
