@@ -52,6 +52,4 @@ impl Interpreter {
 
         Ok(())
     }
-
-    fn execute_block(&mut self, statements: Vec<Stmt>) {}
 }

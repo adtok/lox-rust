@@ -53,6 +53,6 @@ mod tests {
 
     #[test]
     fn initialize_environment() {
-        let environment = Environment::new();
+        let _environment = Environment::new();
     }
 }
