@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     environment::Environment,
     scanner::{self, Token, TokenType},
@@ -66,8 +68,8 @@ impl LiteralValue {
 
     pub fn is_truthy(&self) -> bool {
         match self {
-            LiteralValue::Number(x) => *x == 0.0 as f64,
-            LiteralValue::StringValue(s) => s.len() == 0,
+            LiteralValue::Number(x) => *x != 0.0 as f64,
+            LiteralValue::StringValue(s) => s.len() > 0,
             LiteralValue::True => true,
             LiteralValue::False => false,
             LiteralValue::Nil => false,
@@ -91,6 +93,11 @@ pub enum Expr {
     },
     Literal {
         value: LiteralValue,
+    },
+    Logical {
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
     },
     Unary {
         operator: Token,
@@ -119,6 +126,16 @@ impl Expr {
             ),
             Expr::Grouping { expression } => format!("(group {})", (*expression).to_string()),
             Expr::Literal { value } => format!("{}", value.to_string()),
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => format!(
+                "({} {} {})",
+                operator.lexeme,
+                left.to_string(),
+                right.to_string()
+            ),
             Expr::Unary {
                 operator,
                 right: expression,
@@ -131,11 +148,13 @@ impl Expr {
         }
     }
 
-    pub fn evaluate(&self, environment: &mut Environment) -> Result<LiteralValue, String> {
+    pub fn evaluate(&self, environment: Rc<RefCell<Environment>>) -> Result<LiteralValue, String> {
         match self {
             Expr::Assign { name, value } => {
-                let new_value = (*value).evaluate(environment)?;
-                let success = environment.assign(&name.lexeme, new_value.clone());
+                let new_value = (*value).evaluate(environment.clone())?;
+                let success = environment
+                    .borrow_mut()
+                    .assign(&name.lexeme, new_value.clone());
                 if success {
                     Ok(new_value)
                 } else {
@@ -143,6 +162,25 @@ impl Expr {
                 }
             }
             Expr::Literal { value } => Ok(value.clone()),
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => {
+                let left = left.evaluate(environment.clone())?;
+
+                if operator.token_type == TokenType::Or {
+                    if left.is_truthy() {
+                        return Ok(left);
+                    }
+                } else {
+                    if !left.is_truthy() {
+                        return Ok(left);
+                    }
+                }
+
+                right.evaluate(environment.clone())
+            }
             Expr::Grouping { expression } => expression.evaluate(environment),
             Expr::Unary { operator, right } => {
                 let expr = right.evaluate(environment)?;
@@ -162,8 +200,8 @@ impl Expr {
                 operator,
                 right,
             } => {
-                let expr_l = left.evaluate(environment)?;
-                let expr_r = right.evaluate(environment)?;
+                let expr_l = left.evaluate(environment.clone())?;
+                let expr_r = right.evaluate(environment.clone())?;
 
                 match (&expr_l, operator.token_type, &expr_r) {
                     (LiteralValue::Number(x), TokenType::Plus, LiteralValue::Number(y)) => {
@@ -226,7 +264,7 @@ impl Expr {
                     (x, tt, y) => Err(format!("{} is not supported for {:?} and {:?}", tt, x, y)),
                 }
             }
-            Expr::Variable { name } => match environment.get(&name.lexeme) {
+            Expr::Variable { name } => match environment.borrow().get(&name.lexeme) {
                 Some(value) => Ok(value.clone()),
                 None => Err(format!("Variable {} has not been declared.", name.lexeme)),
             },

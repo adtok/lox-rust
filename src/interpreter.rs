@@ -1,15 +1,16 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{environment::Environment, statement::Stmt};
 
 pub struct Interpreter {
-    environment: Rc<Environment>,
+    environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            environment: Rc::new(Environment::new()),
+            environment: Rc::new(RefCell::new(Environment::new())),
         }
     }
 
@@ -20,26 +21,20 @@ impl Interpreter {
                     let mut new_environment = Environment::new();
                     new_environment.enclosing = Some(self.environment.clone());
                     let old_environment = self.environment.clone();
-                    self.environment = Rc::new(new_environment);
+                    self.environment = Rc::new(RefCell::new(new_environment));
                     let block_result = self.interpret(statements);
                     self.environment = old_environment;
                     block_result?
                 }
                 Stmt::Expression { expression } => {
-                    expression.evaluate(
-                        Rc::get_mut(&mut self.environment)
-                            .expect("Could not get a mutable ref to env"),
-                    )?;
+                    expression.evaluate(self.environment.clone())?;
                 }
                 Stmt::If {
                     condition,
                     then_stmt,
                     else_stmt,
                 } => {
-                    let truth_value = condition.evaluate(
-                        Rc::get_mut(&mut self.environment)
-                            .expect("Could not get a mutable ref to env"),
-                    )?;
+                    let truth_value = condition.evaluate(self.environment.clone())?;
                     if truth_value.is_truthy() {
                         self.interpret(vec![*then_stmt])?
                     } else if let Some(els) = else_stmt {
@@ -47,20 +42,12 @@ impl Interpreter {
                     };
                 }
                 Stmt::Print { expression } => {
-                    let result = expression.evaluate(
-                        Rc::get_mut(&mut self.environment)
-                            .expect("Could not get a mutable ref to env"),
-                    )?;
+                    let result = expression.evaluate(self.environment.clone())?;
                     println!("ECHO: {}", result.to_string());
                 }
                 Stmt::Var { name, initializer } => {
-                    let value = initializer.evaluate(
-                        Rc::get_mut(&mut self.environment)
-                            .expect("Could not get a mutable ref to env"),
-                    )?;
-                    Rc::get_mut(&mut self.environment)
-                        .expect("Could not get a mutable ref to env")
-                        .define(name.lexeme, value);
+                    let value = initializer.evaluate(self.environment.clone())?;
+                    self.environment.borrow_mut().define(name.lexeme, value);
                 }
             };
         }

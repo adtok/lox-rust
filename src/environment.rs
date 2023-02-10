@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -5,7 +6,7 @@ use crate::expression::LiteralValue;
 
 pub struct Environment {
     values: HashMap<String, LiteralValue>,
-    pub enclosing: Option<Rc<Environment>>,
+    pub enclosing: Option<Rc<RefCell<Environment>>>,
 }
 
 impl Environment {
@@ -21,12 +22,12 @@ impl Environment {
     }
 
     // Should this return a result?
-    pub fn get(&self, name: &str) -> Option<&LiteralValue> {
+    pub fn get(&self, name: &str) -> Option<LiteralValue> {
         let old_value = self.values.get(name);
 
         match (old_value, &self.enclosing) {
-            (Some(val), _) => Some(val),
-            (_, Some(env)) => env.get(name),
+            (Some(val), _) => Some(val.clone()),
+            (_, Some(env)) => env.borrow().get(name),
             (_, _) => None,
         }
     }
@@ -34,14 +35,12 @@ impl Environment {
     pub fn assign(&mut self, name: &str, value: LiteralValue) -> bool {
         let old_value = self.values.get(name);
 
-        match (old_value, &mut self.enclosing) {
+        match (old_value, &self.enclosing) {
             (Some(_), _) => {
                 self.values.insert(String::from(name), value);
                 true
             }
-            (None, Some(env)) => Rc::get_mut(&mut env.clone())
-                .expect("Could not get a mutable reference to environment")
-                .assign(name, value),
+            (None, Some(env)) => env.borrow_mut().assign(name, value),
             (None, None) => false,
         }
     }
