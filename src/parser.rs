@@ -38,8 +38,10 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, String> {
-        if self.check(TokenType::Print) {
+        if self.match_tokens(&[TokenType::Print]) {
             self.print_statement()
+        } else if self.match_tokens(&[TokenType::LeftBrace]) {
+            self.block_statement()
         } else {
             self.expression_statement()
         }
@@ -57,10 +59,24 @@ impl Parser {
         Ok(Stmt::Expression { expression: value })
     }
 
+    fn block_statement(&mut self) -> Result<Stmt, String> {
+        let mut statements: Vec<Stmt> = vec![];
+
+        while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+            let declaration = self.declaration()?;
+            statements.push(declaration);
+        }
+
+        match self.consume(TokenType::RightBrace, "Expected '}' after a block") {
+            Ok(_) => Ok(Stmt::Block { statements }),
+            Err(msg) => Err(msg),
+        }
+    }
+
     fn assignment(&mut self) -> Result<Expr, String> {
         let expr = self.equality()?;
 
-        if self.check(TokenType::Equal) {
+        if self.match_tokens(&[TokenType::Equal]) {
             let equals = self.previous();
             let value = self.assignment()?;
 
@@ -80,7 +96,7 @@ impl Parser {
         let name = self.consume(TokenType::Identifier, "Expected variable name.")?;
 
         let initializer;
-        if self.check(TokenType::Equal) {
+        if self.match_tokens(&[TokenType::Equal]) {
             initializer = self.expression()?;
         } else {
             initializer = Expr::Literal {
@@ -101,7 +117,7 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, String> {
-        if self.check(TokenType::Var) {
+        if self.match_tokens(&[TokenType::Var]) {
             self.var_declaration()
         } else {
             self.statement()
@@ -197,7 +213,10 @@ impl Parser {
             TokenType::LeftParen => {
                 self.advance();
                 let expr = self.expression()?;
-                self.consume(TokenType::RightParen, "Expected ')'")?;
+                self.consume(
+                    TokenType::RightParen,
+                    &format!("Line {}:Expected ')'", token.line),
+                )?;
                 Expr::Grouping {
                     expression: Box::from(expr),
                 }
@@ -218,7 +237,7 @@ impl Parser {
                     name: self.previous(),
                 }
             }
-            _ => return Err(String::from("Expected an expression.")),
+            _ => return Err(format!("Line {}: Expected an expression.", token.line)),
         };
 
         Ok(result)
@@ -227,6 +246,7 @@ impl Parser {
     fn match_tokens(&mut self, types: &[TokenType]) -> bool {
         for t in types {
             if self.check(*t) {
+                self.advance();
                 return true;
             }
         }
@@ -247,7 +267,6 @@ impl Parser {
         if self.is_at_end() {
             false
         } else if self.peek().token_type == token_type {
-            self.advance();
             true
         } else {
             false

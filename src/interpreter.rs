@@ -1,34 +1,57 @@
+use std::rc::Rc;
+
 use crate::{environment::Environment, statement::Stmt};
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: Rc<Environment>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            environment: Environment::new(),
+            environment: Rc::new(Environment::new()),
         }
     }
 
     pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<(), String> {
         for stmt in stmts {
             match stmt {
+                Stmt::Block { statements } => {
+                    let mut new_environment = Environment::new();
+                    new_environment.enclosing = Some(self.environment.clone());
+                    let old_environment = self.environment.clone();
+                    self.environment = Rc::new(new_environment);
+                    let block_result = self.interpret(statements);
+                    self.environment = old_environment;
+                    block_result?
+                }
                 Stmt::Expression { expression } => {
-                    expression.evaluate(&mut self.environment)?;
+                    expression.evaluate(
+                        Rc::get_mut(&mut self.environment)
+                            .expect("Could not get a mutable ref to env"),
+                    )?;
                 }
                 Stmt::Print { expression } => {
-                    let result = expression.evaluate(&mut self.environment)?;
-                    println!("{}", result.to_string());
+                    let result = expression.evaluate(
+                        Rc::get_mut(&mut self.environment)
+                            .expect("Could not get a mutable ref to env"),
+                    )?;
+                    println!("ECHO: {}", result.to_string());
                 }
                 Stmt::Var { name, initializer } => {
-                    let value = initializer.evaluate(&mut self.environment)?;
-
-                    self.environment.define(name.lexeme, value);
+                    let value = initializer.evaluate(
+                        Rc::get_mut(&mut self.environment)
+                            .expect("Could not get a mutable ref to env"),
+                    )?;
+                    Rc::get_mut(&mut self.environment)
+                        .expect("Could not get a mutable ref to env")
+                        .define(name.lexeme, value);
                 }
-            }
+            };
         }
 
         Ok(())
     }
+
+    fn execute_block(&mut self, statements: Vec<Stmt>) {}
 }
