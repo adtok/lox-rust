@@ -66,7 +66,7 @@ impl Parser {
 
             match expr {
                 Expr::Variable { name } => Ok(Expr::Assign {
-                    name: name,
+                    name,
                     value: Box::from(value),
                 }),
                 _ => Err(format!("{:?}: Invalid Assignment target", equals)),
@@ -116,7 +116,7 @@ impl Parser {
             let right = self.comparison()?;
             expr = Expr::Binary {
                 left: Box::from(expr),
-                operator: operator,
+                operator,
                 right: Box::from(right),
             }
         }
@@ -137,7 +137,7 @@ impl Parser {
             let right = self.term()?;
             expr = Expr::Binary {
                 left: Box::from(expr),
-                operator: operator,
+                operator,
                 right: Box::from(right),
             }
         }
@@ -153,7 +153,7 @@ impl Parser {
             let right = self.factor()?;
             expr = Expr::Binary {
                 left: Box::from(expr),
-                operator: operator,
+                operator,
                 right: Box::from(right),
             }
         }
@@ -169,7 +169,7 @@ impl Parser {
             let right = self.unary()?;
             expr = Expr::Binary {
                 left: Box::from(expr),
-                operator: operator,
+                operator,
                 right: Box::from(right),
             }
         }
@@ -182,7 +182,7 @@ impl Parser {
             let operator = self.previous();
             let right = self.unary()?;
             Ok(Expr::Unary {
-                operator: operator,
+                operator,
                 right: Box::from(right),
             })
         } else {
@@ -246,13 +246,11 @@ impl Parser {
     fn check(&mut self, token_type: TokenType) -> bool {
         if self.is_at_end() {
             false
+        } else if self.peek().token_type == token_type {
+            self.advance();
+            true
         } else {
-            if self.peek().token_type == token_type {
-                self.advance();
-                true
-            } else {
-                false
-            }
+            false
         }
     }
 

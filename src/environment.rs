@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{expression::LiteralValue, scanner::Token};
+use crate::expression::LiteralValue;
 
 pub struct Environment {
     values: HashMap<String, LiteralValue>,
