@@ -3,7 +3,7 @@ use crate::scanner::Token;
 
 pub enum Stmt {
     Block {
-        statements: Vec<Stmt>,
+        statements: Vec<Box<Stmt>>,
     },
     Expression {
         expression: Expr,
@@ -19,6 +19,10 @@ pub enum Stmt {
     Var {
         name: Token,
         initializer: Expr,
+    },
+    While {
+        condition: Expr,
+        body: Box<Stmt>,
     },
 }
 
@@ -39,7 +43,7 @@ impl ToString for Stmt {
                 else_stmt,
             } => match else_stmt {
                 Some(else_stmt) => format!(
-                    "( if {} then {} else {})",
+                    "(if {} then {} else {})",
                     condition.to_string(),
                     then_stmt.to_string(),
                     else_stmt.to_string()
@@ -55,6 +59,9 @@ impl ToString for Stmt {
                 name,
                 initializer: _,
             } => format!("(var {})", name.to_string()),
+            Stmt::While { condition, body } => {
+                format!("(while {} do {})", condition.to_string(), body.to_string())
+            }
         }
     }
 }

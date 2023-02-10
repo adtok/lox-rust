@@ -29,7 +29,7 @@ fn run(interpreter: &mut Interpreter, contents: &str) -> Result<(), String> {
     let mut parser = Parser::new(tokens);
     let statements = parser.parse()?;
 
-    interpreter.interpret(statements)?;
+    interpreter.interpret(statements.iter().collect())?;
 
     Ok(())
 }

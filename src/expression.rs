@@ -309,4 +309,13 @@ mod tests {
         let result = ast.to_string();
         assert_eq!(result, "(* (- 123) (group 45.67))")
     }
+
+    // #[test]
+    // fn test_is_truthy() {
+    //     let expr_1 = Expr::Binary {
+    //         left: Box::new(Expr::Literal { value: LiteralValue::Number(1.0) }),
+    //         operator: Token {},
+    //         right:
+    //     }
+    // }
 }

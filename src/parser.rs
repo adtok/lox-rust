@@ -42,6 +42,8 @@ impl Parser {
             self.if_statement()
         } else if self.match_tokens(&[TokenType::Print]) {
             self.print_statement()
+        } else if self.match_tokens(&[TokenType::While]) {
+            self.while_statement()
         } else if self.match_tokens(&[TokenType::LeftBrace]) {
             self.block_statement()
         } else {
@@ -82,11 +84,11 @@ impl Parser {
     }
 
     fn block_statement(&mut self) -> Result<Stmt, String> {
-        let mut statements: Vec<Stmt> = vec![];
+        let mut statements: Vec<Box<Stmt>> = vec![];
 
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             let declaration = self.declaration()?;
-            statements.push(declaration);
+            statements.push(Box::new(declaration));
         }
 
         match self.consume(TokenType::RightBrace, "Expected '}' after a block") {
@@ -164,6 +166,18 @@ impl Parser {
         )?;
 
         Ok(Stmt::Var { name, initializer })
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt, String> {
+        self.consume(TokenType::LeftParen, "Expect '(' after a 'while'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after while condition.")?;
+        let body = self.statement()?;
+
+        Ok(Stmt::While {
+            condition,
+            body: Box::new(body),
+        })
     }
 
     fn expression(&mut self) -> Result<Expr, String> {
