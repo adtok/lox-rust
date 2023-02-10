@@ -38,13 +38,35 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, String> {
-        if self.match_tokens(&[TokenType::Print]) {
+        if self.match_tokens(&[TokenType::If]) {
+            self.if_statement()
+        } else if self.match_tokens(&[TokenType::Print]) {
             self.print_statement()
         } else if self.match_tokens(&[TokenType::LeftBrace]) {
             self.block_statement()
         } else {
             self.expression_statement()
         }
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt, String> {
+        self.consume(TokenType::LeftParen, "Expected '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expected ')' after 'if'.")?;
+
+        let then_stmt = Box::new(self.statement()?);
+        let else_stmt = if self.match_tokens(&[TokenType::Else]) {
+            let stmt = self.statement()?;
+            Some(Box::new(stmt))
+        } else {
+            None
+        };
+
+        Ok(Stmt::If {
+            condition,
+            then_stmt,
+            else_stmt,
+        })
     }
 
     fn print_statement(&mut self) -> Result<Stmt, String> {
@@ -259,7 +281,7 @@ impl Parser {
             self.advance();
             Ok(self.previous())
         } else {
-            Err(String::from(message))
+            Err(format!("Line {}: {message}", token.line))
         }
     }
 

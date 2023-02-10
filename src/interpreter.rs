@@ -31,6 +31,21 @@ impl Interpreter {
                             .expect("Could not get a mutable ref to env"),
                     )?;
                 }
+                Stmt::If {
+                    condition,
+                    then_stmt,
+                    else_stmt,
+                } => {
+                    let truth_value = condition.evaluate(
+                        Rc::get_mut(&mut self.environment)
+                            .expect("Could not get a mutable ref to env"),
+                    )?;
+                    if truth_value.is_truthy() {
+                        self.interpret(vec![*then_stmt])?
+                    } else if let Some(els) = else_stmt {
+                        self.interpret(vec![*els])?
+                    };
+                }
                 Stmt::Print { expression } => {
                     let result = expression.evaluate(
                         Rc::get_mut(&mut self.environment)
