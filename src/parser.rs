@@ -327,7 +327,7 @@ mod tests {
         let one = Token {
             token_type: TokenType::Number,
             lexeme: String::from("1"),
-            literal: Some(LiteralValue::IntValue(1)),
+            literal: Some(LiteralValue::FValue(1.0)),
             line: 0,
         };
         let plus = Token {
@@ -339,7 +339,7 @@ mod tests {
         let two = Token {
             token_type: TokenType::Number,
             lexeme: String::from("2"),
-            literal: Some(LiteralValue::IntValue(2)),
+            literal: Some(LiteralValue::FValue(2.0)),
             line: 0,
         };
         let semicolon = Token {

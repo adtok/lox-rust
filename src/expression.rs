@@ -17,7 +17,6 @@ impl LiteralValue {
         match token.token_type {
             TokenType::Number => {
                 let value = match token.literal {
-                    Some(scanner::LiteralValue::IntValue(x)) => x as f64,
                     Some(scanner::LiteralValue::FValue(x)) => x as f64,
                     _ => panic!("Cannot be unwrapped as float"),
                 };
@@ -26,7 +25,6 @@ impl LiteralValue {
             TokenType::StringLit => {
                 let value = match token.literal {
                     Some(scanner::LiteralValue::StringValue(s)) => s.clone(),
-                    Some(scanner::LiteralValue::IdentiferValue(s)) => s.clone(),
                     _ => panic!("Cannot be unwrapped as String"),
                 };
                 Self::StringValue(value)

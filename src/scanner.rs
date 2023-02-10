@@ -21,6 +21,7 @@ fn get_keywords_hashmap() -> HashMap<&'static str, TokenType> {
         ("else", TokenType::Else),
         ("false", TokenType::False),
         ("for", TokenType::For),
+        ("fun", TokenType::Fun),
         ("if", TokenType::If),
         ("nil", TokenType::Nil),
         ("or", TokenType::Or),
@@ -268,10 +269,8 @@ impl Scanner {
 
 #[derive(Debug, Clone)]
 pub enum LiteralValue {
-    IntValue(i64),
     FValue(f64),
     StringValue(String),
-    IdentiferValue(String),
 }
 
 #[derive(Debug, Clone)]
