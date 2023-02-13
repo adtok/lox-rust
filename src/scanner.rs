@@ -285,9 +285,9 @@ pub struct Token {
     pub line: usize,
 }
 
-impl Token {
-    pub fn to_string(&self) -> String {
-        format!("{} {} {:?}", self.token_type, self.lexeme, self.literal)
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {:?}", self.token_type, self.lexeme, self.literal)
     }
 }
 

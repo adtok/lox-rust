@@ -46,16 +46,6 @@ impl LiteralValue {
         }
     }
 
-    pub fn to_string(&self) -> String {
-        match self {
-            LiteralValue::Number(x) => x.to_string(),
-            LiteralValue::StringValue(s) => s.clone(),
-            LiteralValue::True => String::from("true"),
-            LiteralValue::False => String::from("false"),
-            LiteralValue::Nil => String::from("nil"),
-        }
-    }
-
     pub fn to_type(&self) -> &str {
         match self {
             LiteralValue::Number(_) => "Number",
@@ -74,6 +64,19 @@ impl LiteralValue {
             LiteralValue::False => false,
             LiteralValue::Nil => false,
         }
+    }
+}
+
+impl std::fmt::Display for LiteralValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            LiteralValue::Number(x) => x.to_string(),
+            LiteralValue::StringValue(s) => s.clone(),
+            LiteralValue::True => String::from("true"),
+            LiteralValue::False => String::from("false"),
+            LiteralValue::Nil => String::from("nil"),
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -109,45 +112,6 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn to_string(&self) -> String {
-        match self {
-            Expr::Assign { name, value } => {
-                format!("({name:?} = {}", value.to_string())
-            }
-            Expr::Binary {
-                left,
-                right,
-                operator,
-            } => format!(
-                "({} {} {})",
-                operator.lexeme,
-                left.to_string(),
-                right.to_string(),
-            ),
-            Expr::Grouping { expression } => format!("(group {})", (*expression).to_string()),
-            Expr::Literal { value } => format!("{}", value.to_string()),
-            Expr::Logical {
-                left,
-                operator,
-                right,
-            } => format!(
-                "({} {} {})",
-                operator.lexeme,
-                left.to_string(),
-                right.to_string()
-            ),
-            Expr::Unary {
-                operator,
-                right: expression,
-            } => {
-                let operator_str = operator.lexeme.clone();
-                let expression_str = (*expression).to_string();
-                format!("({} {})", operator_str, expression_str)
-            }
-            Expr::Variable { name } => format!("(var {})", name.lexeme),
-        }
-    }
-
     pub fn evaluate(&self, environment: Rc<RefCell<Environment>>) -> Result<LiteralValue, String> {
         match self {
             Expr::Assign { name, value } => {
@@ -269,6 +233,48 @@ impl Expr {
                 None => Err(format!("Variable {} has not been declared.", name.lexeme)),
             },
         }
+    }
+}
+
+impl std::fmt::Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Expr::Assign { name, value } => {
+                format!("({name:?} = {}", value.to_string())
+            }
+            Expr::Binary {
+                left,
+                right,
+                operator,
+            } => format!(
+                "({} {} {})",
+                operator.lexeme,
+                left.to_string(),
+                right.to_string(),
+            ),
+            Expr::Grouping { expression } => format!("(group {})", (*expression).to_string()),
+            Expr::Literal { value } => format!("{}", value.to_string()),
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => format!(
+                "({} {} {})",
+                operator.lexeme,
+                left.to_string(),
+                right.to_string()
+            ),
+            Expr::Unary {
+                operator,
+                right: expression,
+            } => {
+                let operator_str = operator.lexeme.clone();
+                let expression_str = (*expression).to_string();
+                format!("({} {})", operator_str, expression_str)
+            }
+            Expr::Variable { name } => format!("(var {})", name.lexeme),
+        };
+        write!(f, "{}", s)
     }
 }
 

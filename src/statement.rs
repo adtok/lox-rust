@@ -26,9 +26,9 @@ pub enum Stmt {
     },
 }
 
-impl ToString for Stmt {
-    fn to_string(&self) -> String {
-        match self {
+impl std::fmt::Display for Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
             Stmt::Block { statements } => format!(
                 "(block {})",
                 statements
@@ -62,6 +62,7 @@ impl ToString for Stmt {
             Stmt::While { condition, body } => {
                 format!("(while {} do {})", condition.to_string(), body.to_string())
             }
-        }
+        };
+        write!(f, "{}", s)
     }
 }
