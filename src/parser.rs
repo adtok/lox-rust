@@ -38,7 +38,9 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, String> {
-        if self.match_tokens(&[TokenType::If]) {
+        if self.match_tokens(&[TokenType::For]) {
+            self.for_statement()
+        } else if self.match_tokens(&[TokenType::If]) {
             self.if_statement()
         } else if self.match_tokens(&[TokenType::Print]) {
             self.print_statement()
@@ -49,6 +51,64 @@ impl Parser {
         } else {
             self.expression_statement()
         }
+    }
+
+    fn for_statement(&mut self) -> Result<Stmt, String> {
+        self.consume(TokenType::LeftParen, "Expected '(' after 'for'.")?;
+
+        let initializer = if self.match_tokens(&[TokenType::Semicolon]) {
+            None
+        } else if self.match_tokens(&[TokenType::Var]) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let condition = if self.match_tokens(&[TokenType::Semicolon]) {
+            Expr::Literal {
+                value: LiteralValue::True,
+            }
+        } else {
+            self.expression()?
+        };
+        self.consume(TokenType::Semicolon, "Expected ';' after loop condition.")?;
+
+        let increment = if self.check(TokenType::RightParen) {
+            None
+        } else {
+            Some(self.expression()?)
+        };
+
+        self.consume(
+            TokenType::RightParen,
+            "Expected ')' after for loop clauses.",
+        )?;
+
+        let mut body = self.statement()?;
+
+        if let Some(increment_stmt) = increment {
+            body = Stmt::Block {
+                statements: vec![
+                    Box::new(body),
+                    Box::new(Stmt::Expression {
+                        expression: increment_stmt,
+                    }),
+                ],
+            }
+        };
+
+        body = Stmt::While {
+            condition,
+            body: Box::new(body),
+        };
+
+        if let Some(initializer_stmt) = initializer {
+            body = Stmt::Block {
+                statements: vec![Box::new(initializer_stmt), Box::new(body)],
+            }
+        };
+
+        Ok(body)
     }
 
     fn if_statement(&mut self) -> Result<Stmt, String> {
