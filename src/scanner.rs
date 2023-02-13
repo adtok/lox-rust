@@ -67,8 +67,12 @@ impl Scanner {
             }
         }
 
-        self.tokens
-            .push(Token::new(TokenType::Eof, "".to_string(), None, self.line));
+        self.tokens.push(Token {
+            token_type: TokenType::Eof,
+            lexeme: String::from(""),
+            literal: None,
+            line: self.line,
+        });
 
         if errors.len() > 0 {
             let mut joined = String::new();
@@ -282,20 +286,6 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(
-        token_type: TokenType,
-        lexeme: String,
-        literal: Option<LiteralValue>,
-        line: usize,
-    ) -> Self {
-        Self {
-            token_type,
-            lexeme,
-            literal,
-            line,
-        }
-    }
-
     pub fn to_string(&self) -> String {
         format!("{} {} {:?}", self.token_type, self.lexeme, self.literal)
     }
