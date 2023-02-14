@@ -1,12 +1,18 @@
 use crate::expression::Expr;
 use crate::scanner::Token;
 
+#[derive(Clone)]
 pub enum Stmt {
     Block {
         statements: Vec<Box<Stmt>>,
     },
     Expression {
         expression: Expr,
+    },
+    Function {
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<Box<Stmt>>,
     },
     If {
         condition: Expr,
@@ -37,6 +43,13 @@ impl std::fmt::Display for Stmt {
                     .collect::<String>()
             ),
             Stmt::Expression { expression } => expression.to_string(),
+            Stmt::Function { name, params, body } => {
+                let param_names = params
+                    .iter()
+                    .map(|p| p.lexeme.clone())
+                    .collect::<Vec<String>>();
+                format!("(fun {} {param_names:?} {body:?})", name.lexeme)
+            }
             Stmt::If {
                 condition,
                 then_stmt,
@@ -64,5 +77,11 @@ impl std::fmt::Display for Stmt {
             }
         };
         write!(f, "{}", s)
+    }
+}
+
+impl std::fmt::Debug for Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }

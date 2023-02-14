@@ -15,7 +15,7 @@ pub enum LiteralValue {
     Callable {
         name: String,
         arity: usize,
-        fun: Rc<dyn Fn(&Vec<LiteralValue>) -> LiteralValue>,
+        fun: Rc<dyn Fn(Rc<RefCell<Environment>>, &Vec<LiteralValue>) -> LiteralValue>,
     },
 }
 
@@ -94,7 +94,7 @@ impl std::fmt::Display for LiteralValue {
                 name,
                 arity,
                 fun: _,
-            } => format!("{name}/{arity}"),
+            } => format!("<fn {name}/{arity}>"),
         };
         write!(f, "{}", s)
     }
@@ -131,7 +131,7 @@ impl PartialEq for LiteralValue {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Assign {
         name: Token,
@@ -210,7 +210,7 @@ impl Expr {
                             argument_values.push(value);
                         }
 
-                        Ok(fun(&argument_values))
+                        Ok(fun(environment.clone(), &argument_values))
                     }
                     other => Err(format!("{} is not callable.", other.to_type())),
                 }

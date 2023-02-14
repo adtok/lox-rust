@@ -5,6 +5,11 @@ use crate::{
 };
 
 #[derive(Debug)]
+enum FunctionKind {
+    Function,
+}
+
+#[derive(Debug)]
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
@@ -209,6 +214,44 @@ impl Parser {
         Ok(expr)
     }
 
+    fn fun_declaration(&mut self, kind: FunctionKind) -> Result<Stmt, String> {
+        let name = self.consume(TokenType::Identifier, &format!("Expected {kind:?} name."))?;
+
+        self.consume(
+            TokenType::LeftParen,
+            &format!("Expected '(' after {kind:?} name."),
+        )?;
+
+        let mut params = vec![];
+        if !self.check(TokenType::RightParen) {
+            loop {
+                if params.len() >= 255 {
+                    return Err(String::from("Can't have more than 255 parameters."));
+                }
+
+                params.push(self.consume(TokenType::Identifier, "Expected parameter name.")?);
+
+                if !self.match_tokens(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RightParen, "Expected ')' after parameters.")?;
+
+        self.consume(
+            TokenType::LeftBrace,
+            &format!("Expect '{{' before {kind:?} body."),
+        )?;
+        let body = match self.block_statement()? {
+            Stmt::Block { statements } => statements,
+            _ => panic!("Found something other than a block"),
+        };
+
+        let s = Stmt::Function { name, params, body };
+
+        Ok(s)
+    }
+
     fn var_declaration(&mut self) -> Result<Stmt, String> {
         let name = self.consume(TokenType::Identifier, "Expected variable name.")?;
 
@@ -246,7 +289,9 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, String> {
-        if self.match_tokens(&[TokenType::Var]) {
+        if self.match_tokens(&[TokenType::Fun]) {
+            self.fun_declaration(FunctionKind::Function)
+        } else if self.match_tokens(&[TokenType::Var]) {
             self.var_declaration()
         } else {
             self.statement()
@@ -342,21 +387,20 @@ impl Parser {
             loop {
                 arguments.push(self.expression()?);
 
-                if arguments.len() > 255 {
+                if arguments.len() >= 255 {
                     // Change to handle gracefully if ever implemented
                     return Err(String::from(
                         "Functions cannot have more than 255 arguments",
                     ));
                 }
 
-                if self.match_tokens(&[TokenType::Comma]) {
+                if !self.match_tokens(&[TokenType::Comma]) {
                     break;
                 }
             }
         }
 
         let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
-
         Ok(Expr::Call {
             callee: Box::new(callee),
             arguments,
@@ -385,10 +429,7 @@ impl Parser {
             TokenType::LeftParen => {
                 self.advance();
                 let expr = self.expression()?;
-                self.consume(
-                    TokenType::RightParen,
-                    &format!("Line {}:Expected ')'", token.line),
-                )?;
+                self.consume(TokenType::RightParen, "Expected ')'")?;
                 Expr::Grouping {
                     expression: Box::from(expr),
                 }
@@ -409,7 +450,7 @@ impl Parser {
                     name: self.previous(),
                 }
             }
-            _ => return Err(format!("Line {}: Expected an expression.", token.line)),
+            other => return Err(format!("Expected an expression, got {other:?}.")),
         };
 
         Ok(result)
@@ -431,7 +472,7 @@ impl Parser {
             self.advance();
             Ok(self.previous())
         } else {
-            Err(format!("Line {}: {message}", token.line))
+            Err(String::from(message)) // TODO: Adjust parameters to take String
         }
     }
 
