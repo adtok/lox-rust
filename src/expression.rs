@@ -5,13 +5,18 @@ use crate::{
     scanner::{self, Token, TokenType},
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub enum LiteralValue {
     Number(f64),
     StringValue(String),
     True,
     False,
     Nil,
+    Callable {
+        name: String,
+        arity: usize,
+        fun: Rc<dyn Fn(&Vec<LiteralValue>) -> LiteralValue>,
+    },
 }
 
 impl LiteralValue {
@@ -53,6 +58,11 @@ impl LiteralValue {
             LiteralValue::True => "Boolean",
             LiteralValue::False => "Boolean",
             LiteralValue::Nil => "nil",
+            LiteralValue::Callable {
+                name: _,
+                arity: _,
+                fun: _,
+            } => "Callable",
         }
     }
 
@@ -63,6 +73,11 @@ impl LiteralValue {
             LiteralValue::True => true,
             LiteralValue::False => false,
             LiteralValue::Nil => false,
+            LiteralValue::Callable {
+                name: _,
+                arity: _,
+                fun: _,
+            } => panic!("Cannot use a callable as a truthy value"),
         }
     }
 }
@@ -75,8 +90,44 @@ impl std::fmt::Display for LiteralValue {
             LiteralValue::True => String::from("true"),
             LiteralValue::False => String::from("false"),
             LiteralValue::Nil => String::from("nil"),
+            LiteralValue::Callable {
+                name,
+                arity,
+                fun: _,
+            } => format!("{name}/{arity}"),
         };
         write!(f, "{}", s)
+    }
+}
+
+impl std::fmt::Debug for LiteralValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl PartialEq for LiteralValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LiteralValue::Number(x), LiteralValue::Number(y)) => x == y,
+            (LiteralValue::StringValue(s1), LiteralValue::StringValue(s2)) => s1 == s2,
+            (LiteralValue::True, LiteralValue::True) => true,
+            (LiteralValue::False, LiteralValue::False) => true,
+            (LiteralValue::Nil, LiteralValue::Nil) => true,
+            (
+                LiteralValue::Callable {
+                    name,
+                    arity,
+                    fun: _,
+                },
+                LiteralValue::Callable {
+                    name: o_name,
+                    arity: o_arity,
+                    fun: _,
+                },
+            ) => name == o_name && arity == o_arity,
+            _ => false,
+        }
     }
 }
 
@@ -90,6 +141,11 @@ pub enum Expr {
         left: Box<Expr>,
         operator: Token,
         right: Box<Expr>,
+    },
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        arguments: Vec<Expr>,
     },
     Grouping {
         expression: Box<Expr>,
@@ -123,6 +179,40 @@ impl Expr {
                     Ok(new_value)
                 } else {
                     Err(format!("Variable {} has not been declared.", name.lexeme))
+                }
+            }
+            Expr::Call {
+                callee,
+                paren,
+                arguments,
+            } => {
+                let callable = (*callee).evaluate(environment.clone())?;
+
+                match callable {
+                    LiteralValue::Callable { name, arity, fun } => {
+                        let mut arg_list = vec![];
+                        for argument in arguments.iter() {
+                            arg_list.push(argument.evaluate(environment.clone())?);
+                        }
+
+                        if arguments.len() != arity {
+                            return Err(format!(
+                                "Callable {} expected {} arguments, got {}.",
+                                name,
+                                arity,
+                                arguments.len(),
+                            ));
+                        }
+
+                        let mut argument_values = vec![];
+                        for argument in arguments {
+                            let value = argument.evaluate(environment.clone())?;
+                            argument_values.push(value);
+                        }
+
+                        Ok(fun(&argument_values))
+                    }
+                    other => Err(format!("{} is not callable.", other.to_type())),
                 }
             }
             Expr::Literal { value } => Ok(value.clone()),
@@ -252,6 +342,11 @@ impl std::fmt::Display for Expr {
                 left.to_string(),
                 right.to_string(),
             ),
+            Expr::Call {
+                callee,
+                paren: _,
+                arguments,
+            } => format!("({} {arguments:?})", (*callee).to_string()),
             Expr::Grouping { expression } => format!("(group {})", (*expression).to_string()),
             Expr::Literal { value } => format!("{}", value.to_string()),
             Expr::Logical {

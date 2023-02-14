@@ -20,11 +20,12 @@ impl Parser {
         let mut errors = vec![];
 
         while !self.is_at_end() {
+            let line = self.peek().line;
             let stmt = self.declaration();
             match stmt {
                 Ok(stmt) => stmts.push(stmt),
                 Err(msg) => {
-                    errors.push(msg);
+                    errors.push(format!("Line {line}: {msg}"));
                     self.synchronize();
                 }
             }
@@ -330,8 +331,51 @@ impl Parser {
                 right: Box::from(right),
             })
         } else {
-            self.primary()
+            self.call()
         }
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, String> {
+        let mut arguments: Vec<Expr> = vec![];
+
+        if !self.check(TokenType::RightParen) {
+            loop {
+                arguments.push(self.expression()?);
+
+                if arguments.len() > 255 {
+                    // Change to handle gracefully if ever implemented
+                    return Err(String::from(
+                        "Functions cannot have more than 255 arguments",
+                    ));
+                }
+
+                if self.match_tokens(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
+
+        Ok(Expr::Call {
+            callee: Box::new(callee),
+            arguments,
+            paren,
+        })
+    }
+
+    fn call(&mut self) -> Result<Expr, String> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.match_tokens(&[TokenType::LeftParen]) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
     }
 
     fn primary(&mut self) -> Result<Expr, String> {
