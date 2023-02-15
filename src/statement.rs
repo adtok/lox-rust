@@ -22,6 +22,10 @@ pub enum Stmt {
     Print {
         expression: Expr,
     },
+    Return {
+        keyword: Token,
+        value: Option<Expr>,
+    },
     Var {
         name: Token,
         initializer: Expr,
@@ -68,6 +72,10 @@ impl std::fmt::Display for Stmt {
                 ),
             },
             Stmt::Print { expression } => format!("(print {})", expression.to_string()),
+            Stmt::Return { keyword: _, value } => match value {
+                Some(expr) => format!("(-> {expr})"),
+                None => format!("(-> nil)"),
+            },
             Stmt::Var {
                 name,
                 initializer: _,

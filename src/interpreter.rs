@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::environment::Environment;
@@ -8,9 +9,10 @@ use crate::statement::Stmt;
 
 pub struct Interpreter {
     environment: Rc<RefCell<Environment>>,
+    specials: HashMap<String, LiteralValue>,
 }
 
-fn clock_impl(_env: Rc<RefCell<Environment>>, _args: &Vec<LiteralValue>) -> LiteralValue {
+fn clock_impl(_args: &Vec<LiteralValue>) -> LiteralValue {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .expect("Could not get system time.")
@@ -21,9 +23,9 @@ fn clock_impl(_env: Rc<RefCell<Environment>>, _args: &Vec<LiteralValue>) -> Lite
 
 impl Interpreter {
     pub fn new() -> Self {
-        let mut globals = Environment::new();
+        let mut environment = Environment::new();
 
-        globals.define(
+        environment.define(
             String::from("clock"),
             LiteralValue::Callable {
                 name: String::from("clock"),
@@ -33,7 +35,8 @@ impl Interpreter {
         );
 
         Self {
-            environment: Rc::new(RefCell::new(globals)),
+            environment: Rc::new(RefCell::new(environment)),
+            specials: HashMap::new(),
         }
     }
 
@@ -41,7 +44,10 @@ impl Interpreter {
         let environment = Rc::new(RefCell::new(Environment::new()));
         environment.borrow_mut().enclosing = Some(parent);
 
-        Self { environment }
+        Self {
+            environment,
+            specials: HashMap::new(),
+        }
     }
 
     pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<(), String> {
@@ -67,8 +73,9 @@ impl Interpreter {
                     let body: Vec<Box<Stmt>> = body.iter().map(|b| (*b).clone()).collect();
                     let name_clone = name.lexeme.clone();
 
-                    let fun_impl = move |parent_env, args: &Vec<LiteralValue>| {
-                        let mut closure_int = Interpreter::for_closure(parent_env);
+                    let parent_env = self.environment.clone();
+                    let fun_impl = move |args: &Vec<LiteralValue>| {
+                        let mut closure_int = Interpreter::for_closure(parent_env.clone());
                         for (i, arg) in args.iter().enumerate() {
                             closure_int
                                 .environment
@@ -80,19 +87,13 @@ impl Interpreter {
                             closure_int
                                 .interpret(vec![body[i].as_ref()])
                                 .expect(&format!("Evaluating failed inside {}.", name_clone,));
+
+                            if let Some(value) = closure_int.specials.get("return") {
+                                return value.clone();
+                            }
                         }
 
-                        match body[body.len() - 1].as_ref() {
-                            Stmt::Expression { expression } | Stmt::Print { expression } => {
-                                expression
-                                    .evaluate(closure_int.environment.clone())
-                                    .unwrap()
-                            }
-                            // Stmt::Print { expression } => expression
-                            //     .evaluate(closure_int.environment.clone())
-                            //     .unwrap(),
-                            _ => LiteralValue::Nil,
-                        }
+                        LiteralValue::Nil
                     };
 
                     let callable = LiteralValue::Callable {
@@ -120,6 +121,14 @@ impl Interpreter {
                 Stmt::Print { expression } => {
                     let result = expression.evaluate(self.environment.clone())?;
                     println!("ECHO: {}", result.to_string());
+                }
+                Stmt::Return { keyword: _, value } => {
+                    let value = if let Some(expr) = value {
+                        expr.evaluate(self.environment.clone())?
+                    } else {
+                        LiteralValue::Nil
+                    };
+                    self.specials.insert(String::from("return"), value);
                 }
                 Stmt::Var { name, initializer } => {
                     let value = initializer.evaluate(self.environment.clone())?;

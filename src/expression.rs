@@ -1,9 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{
-    environment::Environment,
-    scanner::{self, Token, TokenType},
-};
+use crate::environment::Environment;
+use crate::scanner::{self, Token, TokenType};
 
 #[derive(Clone)]
 pub enum LiteralValue {
@@ -15,7 +13,7 @@ pub enum LiteralValue {
     Callable {
         name: String,
         arity: usize,
-        fun: Rc<dyn Fn(Rc<RefCell<Environment>>, &Vec<LiteralValue>) -> LiteralValue>,
+        fun: Rc<dyn Fn(&Vec<LiteralValue>) -> LiteralValue>,
     },
 }
 
@@ -183,7 +181,7 @@ impl Expr {
             }
             Expr::Call {
                 callee,
-                paren,
+                paren: _,
                 arguments,
             } => {
                 let callable = (*callee).evaluate(environment.clone())?;
@@ -210,7 +208,7 @@ impl Expr {
                             argument_values.push(value);
                         }
 
-                        Ok(fun(environment.clone(), &argument_values))
+                        Ok(fun(&argument_values))
                     }
                     other => Err(format!("{} is not callable.", other.to_type())),
                 }
