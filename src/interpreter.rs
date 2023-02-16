@@ -12,7 +12,7 @@ pub struct Interpreter {
     specials: HashMap<String, LiteralValue>,
 }
 
-fn clock_impl(_args: &Vec<LiteralValue>) -> LiteralValue {
+fn clock_impl(_args: &[LiteralValue]) -> LiteralValue {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .expect("Could not get system time.")
@@ -58,8 +58,7 @@ impl Interpreter {
                     new_environment.enclosing = Some(self.environment.clone());
                     let old_environment = self.environment.clone();
                     self.environment = Rc::new(RefCell::new(new_environment));
-                    let block_result =
-                        self.interpret((*statements).iter().map(|b| b.as_ref()).collect());
+                    let block_result = self.interpret(statements.iter().collect());
                     self.environment = old_environment;
                     block_result?
                 }
@@ -70,11 +69,11 @@ impl Interpreter {
                     let arity = params.len();
 
                     let params: Vec<Token> = params.iter().map(|t| (*t).clone()).collect();
-                    let body: Vec<Box<Stmt>> = body.iter().map(|b| (*b).clone()).collect();
+                    let body: Vec<Stmt> = body.iter().map(|b| (*b).clone()).collect();
                     let name_clone = name.lexeme.clone();
 
                     let parent_env = self.environment.clone();
-                    let fun_impl = move |args: &Vec<LiteralValue>| {
+                    let fun_impl = move |args: &[LiteralValue]| {
                         let mut closure_int = Interpreter::for_closure(parent_env.clone());
                         for (i, arg) in args.iter().enumerate() {
                             closure_int
@@ -83,10 +82,10 @@ impl Interpreter {
                                 .define(params[i].lexeme.clone(), (*arg).clone());
                         }
 
-                        for i in 0..body.len() {
-                            closure_int
-                                .interpret(vec![body[i].as_ref()])
-                                .expect(&format!("Evaluating failed inside {}.", name_clone,));
+                        for item in &body {
+                            closure_int.interpret(vec![item]).unwrap_or_else(|_| {
+                                panic!("Evaluating failed inside {name_clone}.")
+                            });
 
                             if let Some(value) = closure_int.specials.get("return") {
                                 return value.clone();
@@ -120,7 +119,7 @@ impl Interpreter {
                 }
                 Stmt::Print { expression } => {
                     let result = expression.evaluate(self.environment.clone())?;
-                    println!("ECHO: {}", result.to_string());
+                    println!("ECHO: {result}");
                 }
                 Stmt::Return { keyword: _, value } => {
                     let value = if let Some(expr) = value {

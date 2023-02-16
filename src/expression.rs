@@ -13,23 +13,24 @@ pub enum LiteralValue {
     Callable {
         name: String,
         arity: usize,
-        fun: Rc<dyn Fn(&Vec<LiteralValue>) -> LiteralValue>,
+        fun: CallableFunction,
     },
 }
+pub type CallableFunction = Rc<dyn Fn(&[LiteralValue]) -> LiteralValue>;
 
 impl LiteralValue {
     pub fn from_token(token: Token) -> Self {
         match token.token_type {
             TokenType::Number => {
                 let value = match token.literal {
-                    Some(scanner::LiteralValue::FValue(x)) => x as f64,
+                    Some(scanner::LiteralValue::FValue(x)) => x,
                     _ => panic!("Cannot be unwrapped as float"),
                 };
                 Self::Number(value)
             }
             TokenType::StringLit => {
                 let value = match token.literal {
-                    Some(scanner::LiteralValue::StringValue(s)) => s.clone(),
+                    Some(scanner::LiteralValue::StringValue(s)) => s,
                     _ => panic!("Cannot be unwrapped as String"),
                 };
                 Self::StringValue(value)
@@ -37,7 +38,7 @@ impl LiteralValue {
             TokenType::False => Self::False,
             TokenType::Nil => Self::Nil,
             TokenType::True => Self::True,
-            _ => panic!("Could not create LiteralValue from {:?}", token),
+            _ => panic!("Could not create LiteralValue from {token:?}"),
         }
     }
 
@@ -66,8 +67,8 @@ impl LiteralValue {
 
     pub fn is_truthy(&self) -> bool {
         match self {
-            LiteralValue::Number(x) => *x != 0.0 as f64,
-            LiteralValue::StringValue(s) => s.len() > 0,
+            LiteralValue::Number(x) => *x != 0.0f64,
+            LiteralValue::StringValue(s) => !s.is_empty(),
             LiteralValue::True => true,
             LiteralValue::False => false,
             LiteralValue::Nil => false,
@@ -94,7 +95,7 @@ impl std::fmt::Display for LiteralValue {
                 fun: _,
             } => format!("<fn {name}/{arity}>"),
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -225,13 +226,11 @@ impl Expr {
                     if left.is_truthy() {
                         return Ok(left);
                     }
-                } else {
-                    if !left.is_truthy() {
-                        return Ok(left);
-                    }
+                } else if !left.is_truthy() {
+                    return Ok(left);
                 }
 
-                right.evaluate(environment.clone())
+                right.evaluate(environment)
             }
             Expr::Grouping { expression } => expression.evaluate(environment),
             Expr::Unary { operator, right } => {
@@ -244,7 +243,7 @@ impl Expr {
                         expr.to_type()
                     )),
                     (value, TokenType::Bang) => Ok(LiteralValue::from_bool(!value.is_truthy())),
-                    (_, token_type) => Err(format!("{} is not a valid unary operator", token_type)),
+                    (_, token_type) => Err(format!("{token_type} is not a valid unary operator")),
                 }
             }
             Expr::Binary {
@@ -253,7 +252,7 @@ impl Expr {
                 right,
             } => {
                 let expr_l = left.evaluate(environment.clone())?;
-                let expr_r = right.evaluate(environment.clone())?;
+                let expr_r = right.evaluate(environment)?;
 
                 match (&expr_l, operator.token_type, &expr_r) {
                     (LiteralValue::Number(x), TokenType::Plus, LiteralValue::Number(y)) => {
@@ -281,16 +280,16 @@ impl Expr {
                         Ok(LiteralValue::from_bool(x <= y))
                     }
                     (LiteralValue::Number(_), tt, LiteralValue::StringValue(_)) => {
-                        Err(format!("{} is not supported for String and Number", tt))
+                        Err(format!("{tt} is not supported for String and Number"))
                     }
                     (LiteralValue::StringValue(_), tt, LiteralValue::Number(_)) => {
-                        Err(format!("{} is not supported for String and Number", tt))
+                        Err(format!("{tt} is not supported for String and Number"))
                     }
                     (
                         LiteralValue::StringValue(s1),
                         TokenType::Plus,
                         LiteralValue::StringValue(s2),
-                    ) => Ok(LiteralValue::StringValue(format!("{}{}", s1, s2))),
+                    ) => Ok(LiteralValue::StringValue(format!("{s1}{s2}"))),
                     (
                         LiteralValue::StringValue(s1),
                         TokenType::Greater,
@@ -313,11 +312,11 @@ impl Expr {
                     ) => Ok(LiteralValue::from_bool(s1 <= s2)),
                     (x, TokenType::BangEqual, y) => Ok(LiteralValue::from_bool(x != y)),
                     (x, TokenType::EqualEqual, y) => Ok(LiteralValue::from_bool(x == y)),
-                    (x, tt, y) => Err(format!("{} is not supported for {:?} and {:?}", tt, x, y)),
+                    (x, tt, y) => Err(format!("{tt} is not supported for {x:?} and {y:?}")),
                 }
             }
             Expr::Variable { name } => match environment.borrow().get(&name.lexeme) {
-                Some(value) => Ok(value.clone()),
+                Some(value) => Ok(value),
                 None => Err(format!("Variable {} has not been declared.", name.lexeme)),
             },
         }
@@ -328,46 +327,42 @@ impl std::fmt::Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Expr::Assign { name, value } => {
-                format!("({name:?} = {}", value.to_string())
+                format!("({name:?} = {value}")
             }
             Expr::Binary {
                 left,
                 right,
                 operator,
-            } => format!(
-                "({} {} {})",
-                operator.lexeme,
-                left.to_string(),
-                right.to_string(),
-            ),
+            } => {
+                let op = operator.lexeme.clone();
+                format!("({op} {left} {right})")
+            }
             Expr::Call {
                 callee,
                 paren: _,
                 arguments,
-            } => format!("({} {arguments:?})", (*callee).to_string()),
-            Expr::Grouping { expression } => format!("(group {})", (*expression).to_string()),
-            Expr::Literal { value } => format!("{}", value.to_string()),
+            } => format!("({callee} {arguments:?})"),
+            Expr::Grouping { expression } => format!("(group {expression})"),
+            Expr::Literal { value } => format!("{value}"),
             Expr::Logical {
                 left,
                 operator,
                 right,
-            } => format!(
-                "({} {} {})",
-                operator.lexeme,
-                left.to_string(),
-                right.to_string()
-            ),
+            } => {
+                let op = operator.lexeme.clone();
+                format!("({op} {left} {right})")
+            }
             Expr::Unary {
                 operator,
                 right: expression,
             } => {
                 let operator_str = operator.lexeme.clone();
-                let expression_str = (*expression).to_string();
-                format!("({} {})", operator_str, expression_str)
+                // let expression_str = (*expression).to_string();
+                format!("({operator_str} {expression})")
             }
             Expr::Variable { name } => format!("(var {})", name.lexeme),
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -409,12 +404,34 @@ mod tests {
         assert_eq!(result, "(* (- 123) (group 45.67))")
     }
 
-    // #[test]
-    // fn test_is_truthy() {
-    //     let expr_1 = Expr::Binary {
-    //         left: Box::new(Expr::Literal { value: LiteralValue::Number(1.0) }),
-    //         operator: Token {},
-    //         right:
-    //     }
-    // }
+    #[test]
+    fn expr_is_truthy() {
+        // Numbers
+        let truthy_number1 = LiteralValue::Number(-1.2);
+        let truthy_number2 = LiteralValue::Number(0.1);
+        let truthy_number3 = LiteralValue::Number(100.1);
+        let falsy_number = LiteralValue::Number(0.0);
+
+        assert!(truthy_number1.is_truthy());
+        assert!(truthy_number2.is_truthy());
+        assert!(truthy_number3.is_truthy());
+        assert!(!falsy_number.is_truthy());
+
+        // Strings
+        let truthy_string = LiteralValue::StringValue("False".to_string());
+        let falsy_string = LiteralValue::StringValue("".to_string());
+
+        assert!(truthy_string.is_truthy());
+        assert!(!falsy_string.is_truthy());
+
+        // True, False, Nil
+        assert!(LiteralValue::True.is_truthy());
+        assert!(!LiteralValue::False.is_truthy());
+        assert!(!LiteralValue::Nil.is_truthy());
+    }
+
+    #[test]
+    fn logical_expr() {
+        assert!(true);
+    }
 }

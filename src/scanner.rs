@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 fn is_digit(ch: char) -> bool {
     let uch = ch as u8;
-    uch >= '0' as u8 && uch <= '9' as u8
+    (b'0'..=b'9').contains(&uch)
 }
 
 fn is_alpha(ch: char) -> bool {
     let uch = ch as u8;
-    (uch >= 'a' as u8 && uch <= 'z' as u8) || (uch >= 'A' as u8 && uch <= 'Z' as u8) || (ch == '_')
+    (b'a'..=b'z').contains(&uch) || (b'A'..=b'Z').contains(&uch)
 }
 
 fn is_alphanumeric(ch: char) -> bool {
@@ -74,16 +74,11 @@ impl Scanner {
             line: self.line,
         });
 
-        if errors.len() > 0 {
-            let mut joined = String::new();
-            for error in errors {
-                joined.push_str(&error);
-                joined.push_str("\n");
-            }
-            return Err(joined);
+        if errors.is_empty() {
+            Ok(self.tokens.clone())
+        } else {
+            Err(errors.join("\n"))
         }
-
-        Ok(self.tokens.clone())
     }
 
     fn scan_token(&mut self) -> Result<(), String> {
@@ -175,9 +170,9 @@ impl Scanner {
         let text = self.source[self.start..self.current].to_string();
 
         self.tokens.push(Token {
-            token_type: token_type,
+            token_type,
             lexeme: text,
-            literal: literal,
+            literal,
             line: self.line,
         })
     }
@@ -250,7 +245,7 @@ impl Scanner {
 
         match value {
             Ok(value) => self.add_token_lit(TokenType::Number, Some(LiteralValue::FValue(value))),
-            Err(_) => return Err(format!("Could not parse number: {}", substring)),
+            Err(_) => return Err(format!("Could not parse number: {substring}")),
         }
 
         Ok(())
@@ -344,7 +339,7 @@ pub enum TokenType {
 
 impl std::fmt::Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

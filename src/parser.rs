@@ -36,7 +36,7 @@ impl Parser {
             }
         }
 
-        if errors.len() == 0 {
+        if errors.is_empty() {
             Ok(stmts)
         } else {
             Err(errors.join("\n"))
@@ -97,10 +97,10 @@ impl Parser {
         if let Some(increment_stmt) = increment {
             body = Stmt::Block {
                 statements: vec![
-                    Box::new(body),
-                    Box::new(Stmt::Expression {
+                    body,
+                    Stmt::Expression {
                         expression: increment_stmt,
-                    }),
+                    },
                 ],
             }
         };
@@ -112,7 +112,7 @@ impl Parser {
 
         if let Some(initializer_stmt) = initializer {
             body = Stmt::Block {
-                statements: vec![Box::new(initializer_stmt), Box::new(body)],
+                statements: vec![initializer_stmt, body],
             }
         };
 
@@ -165,11 +165,11 @@ impl Parser {
     }
 
     fn block_statement(&mut self) -> Result<Stmt, String> {
-        let mut statements: Vec<Box<Stmt>> = vec![];
+        let mut statements: Vec<Stmt> = vec![];
 
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             let declaration = self.declaration()?;
-            statements.push(Box::new(declaration));
+            statements.push(declaration);
         }
 
         match self.consume(TokenType::RightBrace, "Expected '}' after a block") {
@@ -190,7 +190,7 @@ impl Parser {
                     name,
                     value: Box::from(value),
                 }),
-                _ => Err(format!("{:?}: Invalid Assignment target", equals)),
+                _ => Err(format!("{equals:?}: Invalid Assignment target")),
             }
         } else {
             Ok(expr)
@@ -270,14 +270,13 @@ impl Parser {
     fn var_declaration(&mut self) -> Result<Stmt, String> {
         let name = self.consume(TokenType::Identifier, "Expected variable name.")?;
 
-        let initializer;
-        if self.match_tokens(&[TokenType::Equal]) {
-            initializer = self.expression()?;
+        let initializer = if self.match_tokens(&[TokenType::Equal]) {
+            self.expression()?
         } else {
-            initializer = Expr::Literal {
+            Expr::Literal {
                 value: LiteralValue::Nil,
-            };
-        }
+            }
+        };
 
         self.consume(
             TokenType::Semicolon,
@@ -494,10 +493,8 @@ impl Parser {
     fn check(&mut self, token_type: TokenType) -> bool {
         if self.is_at_end() {
             false
-        } else if self.peek().token_type == token_type {
-            true
         } else {
-            false
+            self.peek().token_type == token_type
         }
     }
 
