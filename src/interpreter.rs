@@ -8,8 +8,8 @@ use crate::scanner::Token;
 use crate::statement::Stmt;
 
 pub struct Interpreter {
-    environment: Rc<RefCell<Environment>>,
-    specials: HashMap<String, LiteralValue>,
+    pub environment: Rc<RefCell<Environment>>,
+    pub specials: HashMap<String, LiteralValue>,
 }
 
 fn clock_impl(_args: &[LiteralValue]) -> LiteralValue {
@@ -33,6 +33,16 @@ impl Interpreter {
                 fun: Rc::new(clock_impl),
             },
         );
+
+        Self {
+            environment: Rc::new(RefCell::new(environment)),
+            specials: HashMap::new(),
+        }
+    }
+
+    pub fn for_lambda(parent: Rc<RefCell<Environment>>) -> Self {
+        let mut environment = Environment::new();
+        environment.enclosing = Some(parent);
 
         Self {
             environment: Rc::new(RefCell::new(environment)),

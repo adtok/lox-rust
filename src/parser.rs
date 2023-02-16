@@ -183,7 +183,7 @@ impl Parser {
 
         if self.match_tokens(&[TokenType::Equal]) {
             let equals = self.previous();
-            let value = self.assignment()?;
+            let value = self.expression()?;
 
             match expr {
                 Expr::Variable { name } => Ok(Expr::Assign {
@@ -195,6 +195,48 @@ impl Parser {
         } else {
             Ok(expr)
         }
+    }
+
+    fn lambda_expression(&mut self) -> Result<Expr, String> {
+        let paren = self.consume(TokenType::LeftParen, "Expected '(' after lambda function.")?;
+        let mut params = vec![];
+
+        if !self.check(TokenType::RightParen) {
+            loop {
+                if params.len() >= 255 {
+                    return Err(String::from(
+                        "Can't have more than 255 arguments in a lambda function.",
+                    ));
+                }
+
+                let param = self.consume(TokenType::Identifier, "Expected parameter name.")?;
+                params.push(param);
+
+                if !self.match_tokens(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+        self.consume(
+            TokenType::RightParen,
+            "Expected ')' after lambda function parameters.",
+        )?;
+
+        self.consume(
+            TokenType::LeftBrace,
+            "Expected '{' after lambda function declaration.",
+        )?;
+
+        let body = match self.block_statement()? {
+            Stmt::Block { statements } => statements,
+            _ => panic!("Block statement parsed something that was not a block."),
+        };
+
+        Ok(Expr::Lambda {
+            paren,
+            arguments: params,
+            body,
+        })
     }
 
     fn or(&mut self) -> Result<Expr, String> {
@@ -463,6 +505,10 @@ impl Parser {
                 Expr::Variable {
                     name: self.previous(),
                 }
+            }
+            TokenType::Fun => {
+                self.advance();
+                self.lambda_expression()?
             }
             other => return Err(format!("Expected an expression, got {other:?}.")),
         };

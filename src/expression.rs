@@ -1,7 +1,9 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::environment::Environment;
+use crate::interpreter::Interpreter;
 use crate::scanner::{self, Token, TokenType};
+use crate::statement::Stmt;
 
 #[derive(Clone)]
 pub enum LiteralValue {
@@ -149,6 +151,11 @@ pub enum Expr {
     Grouping {
         expression: Box<Expr>,
     },
+    Lambda {
+        paren: Token,
+        arguments: Vec<Token>,
+        body: Vec<Stmt>,
+    },
     Literal {
         value: LiteralValue,
     },
@@ -213,6 +220,46 @@ impl Expr {
                     }
                     other => Err(format!("{} is not callable.", other.to_type())),
                 }
+            }
+            Expr::Lambda {
+                paren: _,
+                arguments,
+                body,
+            } => {
+                let arity = arguments.len();
+                let environment = environment;
+                let arguments = arguments.clone();
+                let body = body.clone();
+                // let body: Vec<Stmt> = body.iter().map(|b| (*b).clone()).collect();
+
+                let fun_impl = move |args: &[LiteralValue]| {
+                    let mut lambda_int = Interpreter::for_lambda(environment.clone());
+
+                    for (i, arg) in args.iter().enumerate() {
+                        lambda_int
+                            .environment
+                            .borrow_mut()
+                            .define(arguments[i].lexeme.clone(), (*arg).clone());
+                    }
+
+                    for stmt in body.iter() {
+                        lambda_int
+                            .interpret(vec![stmt])
+                            .unwrap_or_else(|_| panic!("Evaluating field failed."));
+
+                        if let Some(value) = lambda_int.specials.get("return") {
+                            return value.clone();
+                        }
+                    }
+
+                    LiteralValue::Nil
+                };
+
+                Ok(LiteralValue::Callable {
+                    name: String::from("lambda"),
+                    arity,
+                    fun: Rc::new(fun_impl),
+                })
             }
             Expr::Literal { value } => Ok(value.clone()),
             Expr::Logical {
@@ -343,6 +390,11 @@ impl std::fmt::Display for Expr {
                 arguments,
             } => format!("({callee} {arguments:?})"),
             Expr::Grouping { expression } => format!("(group {expression})"),
+            Expr::Lambda {
+                paren: _,
+                arguments,
+                body: _,
+            } => format!("anon/{}", arguments.len()),
             Expr::Literal { value } => format!("{value}"),
             Expr::Logical {
                 left,
