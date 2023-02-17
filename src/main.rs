@@ -4,6 +4,7 @@ mod interpreter;
 mod parser;
 mod scanner;
 mod statement;
+mod tests;
 use interpreter::Interpreter;
 use parser::Parser;
 
@@ -60,27 +61,29 @@ fn run_prompt() -> Result<(), String> {
     Ok(())
 }
 
+pub fn run_string(contents: &str) -> Result<(), String> {
+    let mut interpreter = Interpreter::new();
+    run(&mut interpreter, contents)
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    match args.len() {
-        n if n > 2 => {
+    let result = match args.len() {
+        3 if args[1] == "e" => run_string(&args[2]),
+        2 => run_file(&args[1]),
+        1 => run_prompt(),
+        _ => {
             println!("Usage: lox [script]");
             exit(64)
         }
-        2 => match run_file(&args[1]) {
-            Ok(_) => exit(0),
-            Err(msg) => {
-                println!("Error:\n{msg}");
-                exit(1)
-            }
-        },
-        _ => match run_prompt() {
-            Ok(_) => exit(0),
-            Err(msg) => {
-                println!("Error:\n{msg}");
-                exit(2)
-            }
-        },
+    };
+
+    match result {
+        Ok(_) => exit(0),
+        Err(msg) => {
+            println!("Error:\n{msg}");
+            exit(1)
+        }
     }
 }
