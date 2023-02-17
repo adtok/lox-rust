@@ -174,10 +174,10 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn evaluate(&self, environment: Rc<RefCell<Environment>>) -> Result<LiteralValue, String> {
+    pub fn _evaluate(&self, environment: Rc<RefCell<Environment>>) -> Result<LiteralValue, String> {
         match self {
             Expr::Assign { name, value } => {
-                let new_value = (*value).evaluate(environment.clone())?;
+                let new_value = (*value)._evaluate(environment.clone())?;
                 let success = environment
                     .borrow_mut()
                     .assign(&name.lexeme, new_value.clone());
@@ -192,13 +192,13 @@ impl Expr {
                 paren: _,
                 arguments,
             } => {
-                let callable = (*callee).evaluate(environment.clone())?;
+                let callable = (*callee)._evaluate(environment.clone())?;
 
                 match callable {
                     LiteralValue::Callable { name, arity, fun } => {
                         let mut arg_list = vec![];
                         for argument in arguments.iter() {
-                            arg_list.push(argument.evaluate(environment.clone())?);
+                            arg_list.push(argument._evaluate(environment.clone())?);
                         }
 
                         if arguments.len() != arity {
@@ -212,7 +212,7 @@ impl Expr {
 
                         let mut argument_values = vec![];
                         for argument in arguments {
-                            let value = argument.evaluate(environment.clone())?;
+                            let value = argument._evaluate(environment.clone())?;
                             argument_values.push(value);
                         }
 
@@ -267,7 +267,7 @@ impl Expr {
                 operator,
                 right,
             } => {
-                let left = left.evaluate(environment.clone())?;
+                let left = left._evaluate(environment.clone())?;
 
                 if operator.token_type == TokenType::Or {
                     if left.is_truthy() {
@@ -277,11 +277,11 @@ impl Expr {
                     return Ok(left);
                 }
 
-                right.evaluate(environment)
+                right._evaluate(environment)
             }
-            Expr::Grouping { expression } => expression.evaluate(environment),
+            Expr::Grouping { expression } => expression._evaluate(environment),
             Expr::Unary { operator, right } => {
-                let expr = right.evaluate(environment)?;
+                let expr = right._evaluate(environment)?;
 
                 match (&expr, operator.token_type) {
                     (LiteralValue::Number(x), TokenType::Minus) => Ok(LiteralValue::Number(-x)),
@@ -298,8 +298,8 @@ impl Expr {
                 operator,
                 right,
             } => {
-                let expr_l = left.evaluate(environment.clone())?;
-                let expr_r = right.evaluate(environment)?;
+                let expr_l = left._evaluate(environment.clone())?;
+                let expr_r = right._evaluate(environment)?;
 
                 match (&expr_l, operator.token_type, &expr_r) {
                     (LiteralValue::Number(x), TokenType::Plus, LiteralValue::Number(y)) => {
