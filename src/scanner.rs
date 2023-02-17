@@ -7,7 +7,7 @@ fn is_digit(ch: char) -> bool {
 
 fn is_alpha(ch: char) -> bool {
     let uch = ch as u8;
-    (b'a'..=b'z').contains(&uch) || (b'A'..=b'Z').contains(&uch)
+    (b'a'..=b'z').contains(&uch) || (b'A'..=b'Z').contains(&uch) || (ch == '_')
 }
 
 fn is_alphanumeric(ch: char) -> bool {
