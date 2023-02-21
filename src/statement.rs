@@ -67,10 +67,7 @@ impl std::fmt::Display for Stmt {
                 Some(expr) => format!("(-> {expr})"),
                 None => String::from("(-> nil)"),
             },
-            Stmt::Var {
-                name,
-                initializer: _,
-            } => format!("(var {name})"),
+            Stmt::Var { name, initializer } => format!("(var {} {initializer})", name.lexeme),
             Stmt::While { condition, body } => {
                 format!("(while {condition} do {body})")
             }
