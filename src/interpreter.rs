@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::callable::LoxCallable;
@@ -8,7 +7,8 @@ use crate::scanner::{Token, TokenType};
 use crate::statement::Stmt;
 
 pub struct Interpreter {
-    pub environment: Rc<RefCell<Environment>>,
+    globals: Environment,
+    environment: Environment,
 }
 
 fn clock_impl(_args: &[LiteralValue]) -> LiteralValue {
@@ -34,34 +34,26 @@ impl Interpreter {
         );
 
         Self {
-            environment: Rc::new(RefCell::new(environment)),
+            globals: Environment::new(),
+            environment,
         }
     }
 
-    pub fn for_lambda(parent: Rc<RefCell<Environment>>) -> Self {
+    pub fn from_env(parent: Box<Environment>) -> Self {
         let mut environment = Environment::new();
         environment.enclosing = Some(parent);
 
         Self {
-            environment: Rc::new(RefCell::new(environment)),
+            globals: Environment::new(),
+            environment,
         }
-    }
-
-    fn for_closure(parent: Rc<RefCell<Environment>>) -> Self {
-        let environment = Rc::new(RefCell::new(Environment::new()));
-        environment.borrow_mut().enclosing = Some(parent);
-
-        Self { environment }
     }
 
     pub fn evaluate(&mut self, expr: &Expr) -> Result<LiteralValue, String> {
         match expr {
             Expr::Assign { name, value } => {
                 let new_value = self.evaluate(value)?;
-                let success = self
-                    .environment
-                    .borrow_mut()
-                    .assign(&name.lexeme, new_value.clone());
+                let success = self.environment.assign(&name.lexeme, new_value.clone());
 
                 if success {
                     Ok(new_value)
@@ -196,12 +188,11 @@ impl Interpreter {
                 let environment = self.environment.clone();
 
                 let fun_impl = move |args: &[LiteralValue]| {
-                    let mut lambda_int = Interpreter::for_lambda(environment.clone());
+                    let mut lambda_int = Interpreter::from_env(Box::new(environment.clone()));
 
                     for (i, arg) in args.iter().enumerate() {
                         lambda_int
                             .environment
-                            .borrow_mut()
                             .define(arguments[i].lexeme.clone(), (*arg).clone())
                     }
 
@@ -254,7 +245,7 @@ impl Interpreter {
                     (_, token_type) => Err(format!("{token_type} is not a valid unary operator.")),
                 }
             }
-            Expr::Variable { name } => match self.environment.borrow().get(&name.lexeme) {
+            Expr::Variable { name } => match self.environment.get(&name.lexeme) {
                 Some(value) => Ok(value),
                 None => Err(format!("Variable '{}' has not been declared.", name.lexeme)),
             },
@@ -275,9 +266,9 @@ impl Interpreter {
         let result = match stmt {
             Stmt::Block { statements } => {
                 let mut new_environment = Environment::new();
-                new_environment.enclosing = Some(self.environment.clone());
+                new_environment.enclosing = Some(Box::new(self.environment.clone()));
                 let old_environment = self.environment.clone();
-                self.environment = Rc::new(RefCell::new(new_environment));
+                self.environment = new_environment;
                 let block_result = self.interpret(statements.iter().collect());
                 self.environment = old_environment;
                 block_result?
@@ -294,19 +285,19 @@ impl Interpreter {
                 let name_clone = name.lexeme.clone();
 
                 let parent_env = self.environment.clone();
+
                 let fun_impl = move |args: &[LiteralValue]| {
-                    let mut closure_int = Interpreter::for_closure(parent_env.clone());
+                    let mut closure_int = Interpreter::from_env(Box::new(parent_env.clone()));
                     for (i, arg) in args.iter().enumerate() {
                         closure_int
                             .environment
-                            .borrow_mut()
                             .define(params[i].lexeme.clone(), (*arg).clone());
                     }
 
                     for item in &body {
-                        let result = closure_int
-                            .execute(item)
-                            .unwrap_or_else(|_| panic!("Evaluating failed inside {name_clone}."));
+                        let result = closure_int.execute(item).unwrap_or_else(|msg| {
+                            panic!("Evaluating failed inside {name_clone}.\n{msg}")
+                        });
 
                         if let Some(value) = result {
                             return value.clone();
@@ -322,9 +313,7 @@ impl Interpreter {
                     fun: Rc::new(fun_impl),
                 };
 
-                self.environment
-                    .borrow_mut()
-                    .define(name.lexeme.clone(), callable);
+                self.environment.define(name.lexeme.clone(), callable);
                 None
             }
             Stmt::If {
@@ -356,9 +345,7 @@ impl Interpreter {
             }
             Stmt::Var { name, initializer } => {
                 let value = self.evaluate(initializer)?;
-                self.environment
-                    .borrow_mut()
-                    .define(name.lexeme.clone(), value);
+                self.environment.define(name.lexeme.clone(), value);
                 None
             }
             Stmt::While { condition, body } => {
