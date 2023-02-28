@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use crate::{expression::LiteralValue, interpreter::Interpreter};
 
+#[derive(Clone)]
 pub enum LoxCallable {
     NativeFunction {
         name: String,
@@ -13,7 +14,7 @@ pub enum LoxCallable {
 pub type CallableFunction = Rc<dyn Fn(&[LiteralValue]) -> LiteralValue>;
 
 impl LoxCallable {
-    fn arity(&self) -> usize {
+    pub fn arity(&self) -> usize {
         match self {
             Self::NativeFunction {
                 name: _,
@@ -23,7 +24,7 @@ impl LoxCallable {
         }
     }
 
-    fn call(
+    pub fn call(
         &self,
         interpreter: &mut Interpreter,
         arguments: Vec<LiteralValue>,
@@ -38,7 +39,7 @@ impl LoxCallable {
         Ok(result)
     }
 
-    fn name(&self) -> String {
+    pub fn name(&self) -> String {
         match self {
             Self::NativeFunction {
                 name,

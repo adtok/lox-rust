@@ -149,9 +149,9 @@ impl Interpreter {
                 paren: _,
                 arguments,
             } => {
-                let callable = self.evaluate(callee)?;
+                let callee_literal = self.evaluate(callee)?;
 
-                if let LiteralValue::OldCallable { name, arity, fun } = callable {
+                if let LiteralValue::OldCallable { name, arity, fun } = callee_literal {
                     let mut arg_list = vec![];
                     for argument in arguments.iter() {
                         arg_list.push(self.evaluate(argument)?);
@@ -171,8 +171,23 @@ impl Interpreter {
 
                         Ok(fun(&argument_values))
                     }
+                } else if let LiteralValue::Callable(callable) = callee_literal {
+                    let mut arg_list = vec![];
+                    for argument in arguments.iter() {
+                        arg_list.push(self.evaluate(argument)?);
+                    }
+                    if arg_list.len() != callable.arity() {
+                        Err(format!(
+                            "Callable {} expected {} arguments, got {}",
+                            callable.name(),
+                            callable.arity(),
+                            arg_list.len()
+                        ))
+                    } else {
+                        Ok(callable.call(self, arg_list)?)
+                    }
                 } else {
-                    Err(format!("{} is not callable", callable.to_type()))
+                    Err(format!("{} is not callable", callee_literal.to_type()))
                 }
             }
             Expr::Grouping { expression } => self.evaluate(expression),
