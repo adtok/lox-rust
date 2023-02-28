@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::callable::LoxCallable;
@@ -10,7 +9,6 @@ use crate::statement::Stmt;
 
 pub struct Interpreter {
     pub environment: Rc<RefCell<Environment>>,
-    pub specials: HashMap<String, LiteralValue>,
 }
 
 fn clock_impl(_args: &[LiteralValue]) -> LiteralValue {
@@ -37,7 +35,6 @@ impl Interpreter {
 
         Self {
             environment: Rc::new(RefCell::new(environment)),
-            specials: HashMap::new(),
         }
     }
 
@@ -47,7 +44,6 @@ impl Interpreter {
 
         Self {
             environment: Rc::new(RefCell::new(environment)),
-            specials: HashMap::new(),
         }
     }
 
@@ -55,10 +51,7 @@ impl Interpreter {
         let environment = Rc::new(RefCell::new(Environment::new()));
         environment.borrow_mut().enclosing = Some(parent);
 
-        Self {
-            environment,
-            specials: HashMap::new(),
-        }
+        Self { environment }
     }
 
     pub fn evaluate(&mut self, expr: &Expr) -> Result<LiteralValue, String> {
@@ -213,10 +206,10 @@ impl Interpreter {
                     }
 
                     for stmt in body.iter() {
-                        lambda_int
+                        let result = lambda_int
                             .execute(stmt)
                             .unwrap_or_else(|_| panic!("Evaluating field failed"));
-                        if let Some(value) = lambda_int.specials.get("return") {
+                        if let Some(value) = result {
                             return value.clone();
                         }
                     }
@@ -268,15 +261,18 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<(), String> {
+    pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<Option<LiteralValue>, String> {
         for stmt in stmts {
-            self.execute(stmt)?
+            let result = self.execute(stmt)?;
+            if result != None {
+                return Ok(result);
+            }
         }
-        Ok(())
+        Ok(None)
     }
 
-    fn execute(&mut self, stmt: &Stmt) -> Result<(), String> {
-        match stmt {
+    fn execute(&mut self, stmt: &Stmt) -> Result<Option<LiteralValue>, String> {
+        let result = match stmt {
             Stmt::Block { statements } => {
                 let mut new_environment = Environment::new();
                 new_environment.enclosing = Some(self.environment.clone());
@@ -288,6 +284,7 @@ impl Interpreter {
             }
             Stmt::Expression { expression } => {
                 self.evaluate(expression)?;
+                None
             }
             Stmt::Function { name, params, body } => {
                 let arity = params.len();
@@ -307,11 +304,11 @@ impl Interpreter {
                     }
 
                     for item in &body {
-                        closure_int
+                        let result = closure_int
                             .execute(item)
                             .unwrap_or_else(|_| panic!("Evaluating failed inside {name_clone}."));
 
-                        if let Some(value) = closure_int.specials.get("return") {
+                        if let Some(value) = result {
                             return value.clone();
                         }
                     }
@@ -328,6 +325,7 @@ impl Interpreter {
                 self.environment
                     .borrow_mut()
                     .define(name.lexeme.clone(), callable);
+                None
             }
             Stmt::If {
                 condition,
@@ -339,11 +337,14 @@ impl Interpreter {
                     self.execute(then_stmt)?
                 } else if let Some(els) = else_stmt {
                     self.execute(els)?
-                };
+                } else {
+                    None
+                }
             }
             Stmt::Print { expression } => {
                 let result = self.evaluate(expression)?;
                 println!("{result}");
+                None
             }
             Stmt::Return { keyword: _, value } => {
                 let value = if let Some(expr) = value {
@@ -351,13 +352,14 @@ impl Interpreter {
                 } else {
                     LiteralValue::Nil
                 };
-                self.specials.insert(String::from("return"), value);
+                Some(value)
             }
             Stmt::Var { name, initializer } => {
                 let value = self.evaluate(initializer)?;
                 self.environment
                     .borrow_mut()
                     .define(name.lexeme.clone(), value);
+                None
             }
             Stmt::While { condition, body } => {
                 let mut flag = self.evaluate(condition)?;
@@ -366,8 +368,9 @@ impl Interpreter {
                     self.interpret(statements)?;
                     flag = self.evaluate(condition)?;
                 }
+                None
             }
         };
-        Ok(())
+        Ok(result)
     }
 }
