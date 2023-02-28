@@ -321,7 +321,7 @@ impl Interpreter {
                 }
                 Stmt::Print { expression } => {
                     let result = self.evaluate(expression)?;
-                    println!("ECHO: {result}");
+                    println!("{result}");
                 }
                 Stmt::Return { keyword: _, value } => {
                     let value = if let Some(expr) = value {
