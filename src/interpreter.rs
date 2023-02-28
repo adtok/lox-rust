@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::callable::LoxCallable;
 use crate::environment::Environment;
 use crate::expression::{Expr, LiteralValue};
 use crate::scanner::{Token, TokenType};
@@ -27,11 +28,11 @@ impl Interpreter {
 
         environment.define(
             String::from("clock"),
-            LiteralValue::OldCallable {
+            LiteralValue::Callable(LoxCallable::NativeFunction {
                 name: String::from("clock"),
                 arity: 0,
                 fun: Rc::new(clock_impl),
-            },
+            }),
         );
 
         Self {
