@@ -10,7 +10,7 @@ pub enum LiteralValue {
     True,
     False,
     Nil,
-    Callable {
+    OldCallable {
         name: String,
         arity: usize,
         fun: CallableFunction,
@@ -57,7 +57,7 @@ impl LiteralValue {
             LiteralValue::True => "Boolean",
             LiteralValue::False => "Boolean",
             LiteralValue::Nil => "nil",
-            LiteralValue::Callable {
+            LiteralValue::OldCallable {
                 name: _,
                 arity: _,
                 fun: _,
@@ -72,7 +72,7 @@ impl LiteralValue {
             LiteralValue::True => true,
             LiteralValue::False => false,
             LiteralValue::Nil => false,
-            LiteralValue::Callable {
+            LiteralValue::OldCallable {
                 name: _,
                 arity: _,
                 fun: _,
@@ -89,7 +89,7 @@ impl std::fmt::Display for LiteralValue {
             LiteralValue::True => String::from("true"),
             LiteralValue::False => String::from("false"),
             LiteralValue::Nil => String::from("nil"),
-            LiteralValue::Callable {
+            LiteralValue::OldCallable {
                 name,
                 arity,
                 fun: _,
@@ -114,12 +114,12 @@ impl PartialEq for LiteralValue {
             (LiteralValue::False, LiteralValue::False) => true,
             (LiteralValue::Nil, LiteralValue::Nil) => true,
             (
-                LiteralValue::Callable {
+                LiteralValue::OldCallable {
                     name,
                     arity,
                     fun: _,
                 },
-                LiteralValue::Callable {
+                LiteralValue::OldCallable {
                     name: o_name,
                     arity: o_arity,
                     fun: _,

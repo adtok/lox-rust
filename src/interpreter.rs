@@ -27,7 +27,7 @@ impl Interpreter {
 
         environment.define(
             String::from("clock"),
-            LiteralValue::Callable {
+            LiteralValue::OldCallable {
                 name: String::from("clock"),
                 arity: 0,
                 fun: Rc::new(clock_impl),
@@ -151,7 +151,7 @@ impl Interpreter {
             } => {
                 let callable = self.evaluate(callee)?;
 
-                if let LiteralValue::Callable { name, arity, fun } = callable {
+                if let LiteralValue::OldCallable { name, arity, fun } = callable {
                     let mut arg_list = vec![];
                     for argument in arguments.iter() {
                         arg_list.push(self.evaluate(argument)?);
@@ -208,7 +208,7 @@ impl Interpreter {
                     LiteralValue::Nil
                 };
 
-                Ok(LiteralValue::Callable {
+                Ok(LiteralValue::OldCallable {
                     name: String::from("lambda"),
                     arity,
                     fun: Rc::new(fun_impl),
@@ -303,7 +303,7 @@ impl Interpreter {
                     LiteralValue::Nil
                 };
 
-                let callable = LiteralValue::Callable {
+                let callable = LiteralValue::OldCallable {
                     name: name.lexeme.clone(),
                     arity,
                     fun: Rc::new(fun_impl),
