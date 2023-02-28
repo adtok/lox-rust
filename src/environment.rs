@@ -4,10 +4,12 @@ use std::rc::Rc;
 
 use crate::expression::LiteralValue;
 
+#[derive(Clone)]
 pub struct Environment {
-    values: HashMap<String, LiteralValue>,
+    pub values: HashMap<String, LiteralValue>,
     pub enclosing: Option<Rc<RefCell<Environment>>>,
 }
+// RcRefCell on values, OptionBox on enclosing??
 
 impl Environment {
     pub fn new() -> Self {
@@ -19,6 +21,32 @@ impl Environment {
 
     pub fn define(&mut self, name: String, value: LiteralValue) {
         self.values.insert(name, value);
+    }
+
+    pub fn get_at(&self, distance: usize, name: &str) -> Option<LiteralValue> {
+        if distance == 0 {
+            self.values.get(name).cloned()
+        } else {
+            if let Some(enc_env) = &self.enclosing {
+                assert!(distance > 0);
+                enc_env.borrow().get_at(distance, name)
+            } else {
+                panic!("Tried to access ancestor too deep.")
+            }
+        }
+    }
+
+    pub fn assign_at(&mut self, distance: usize, name: &str, value: LiteralValue) -> bool {
+        if distance == 0 {
+            self.assign(name, value)
+        } else {
+            if let Some(enc_env) = &self.enclosing {
+                assert!(distance > 0);
+                enc_env.borrow_mut().assign_at(distance - 1, name, value)
+            } else {
+                panic!("Tried to access ancestor too deep")
+            }
+        }
     }
 
     // Should this return a result?

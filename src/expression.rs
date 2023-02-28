@@ -1,9 +1,85 @@
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::environment::Environment;
 use crate::interpreter::Interpreter;
 use crate::scanner::{self, Token, TokenType};
 use crate::statement::Stmt;
+
+#[derive(Clone)]
+pub enum LoxCallable {
+    LoxFunction {
+        name: String,
+        arity: usize,
+        closure: Environment,
+        params: Vec<Token>,
+        body: Vec<Box<Stmt>>,
+    },
+    NativeFunction {
+        name: String,
+        arity: usize,
+        fun: CallableFunction,
+    },
+}
+
+impl LoxCallable {
+    pub fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: &Vec<Expr>,
+    ) -> Result<LiteralValue, String> {
+        match self {
+            LoxCallable::LoxFunction {
+                name,
+                arity,
+                closure,
+                params,
+                body,
+            } => {
+                let num_args = arguments.len();
+                if num_args != *arity {
+                    return Err(format!("{name} expects {arity} args, received {num_args}."));
+                }
+                // let mut environment = &interpreter.environment.borrow_mut().clone();
+                let mut args = vec![];
+                for argument in arguments.iter() {
+                    args.push(interpreter.evaluate(argument)?);
+                }
+                // println!("{:?}", environment.values);
+                let mut interpreter = Interpreter::for_closure(interpreter.environment.clone());
+                for i in 0..params.len() {
+                    interpreter
+                        .environment
+                        .borrow_mut()
+                        .define(params[i].lexeme.clone(), args[i].clone());
+                }
+                // interpreter
+                //     .execute_block(body.iter().map(|s| s.as_ref()).collect(), environment)?;
+
+                for statement in body.iter() {
+                    interpreter.execute(statement)?;
+
+                    if let Some(val) = interpreter.specials.get("return") {
+                        return Ok(val.clone());
+                    }
+                }
+
+                Ok(LiteralValue::Nil)
+            }
+            LoxCallable::NativeFunction { name, arity, fun } => {
+                let num_args = arguments.len();
+                if num_args != *arity {
+                    return Err(format!("{name} expects {arity} args, received {num_args}."));
+                }
+                let mut args = vec![];
+                for argument in arguments.iter() {
+                    args.push(interpreter.evaluate(argument)?);
+                }
+                Ok(fun(&args))
+            }
+        }
+    }
+}
 
 #[derive(Clone)]
 pub enum LiteralValue {
@@ -12,11 +88,7 @@ pub enum LiteralValue {
     True,
     False,
     Nil,
-    Callable {
-        name: String,
-        arity: usize,
-        fun: CallableFunction,
-    },
+    Callable(LoxCallable),
 }
 pub type CallableFunction = Rc<dyn Fn(&[LiteralValue]) -> LiteralValue>;
 
@@ -59,11 +131,7 @@ impl LiteralValue {
             LiteralValue::True => "Boolean",
             LiteralValue::False => "Boolean",
             LiteralValue::Nil => "nil",
-            LiteralValue::Callable {
-                name: _,
-                arity: _,
-                fun: _,
-            } => "Callable",
+            LiteralValue::Callable(_) => "Callable",
         }
     }
 
@@ -74,11 +142,7 @@ impl LiteralValue {
             LiteralValue::True => true,
             LiteralValue::False => false,
             LiteralValue::Nil => false,
-            LiteralValue::Callable {
-                name: _,
-                arity: _,
-                fun: _,
-            } => panic!("Cannot use a callable as a truthy value"),
+            LiteralValue::Callable(_) => panic!("Cannot use a callable as a truthy value"),
         }
     }
 }
@@ -91,11 +155,20 @@ impl std::fmt::Display for LiteralValue {
             LiteralValue::True => String::from("true"),
             LiteralValue::False => String::from("false"),
             LiteralValue::Nil => String::from("nil"),
-            LiteralValue::Callable {
-                name,
-                arity,
-                fun: _,
-            } => format!("<fn {name}/{arity}>"),
+            LiteralValue::Callable(func) => match func {
+                LoxCallable::LoxFunction {
+                    name,
+                    arity,
+                    closure: _,
+                    params: _,
+                    body: _,
+                }
+                | LoxCallable::NativeFunction {
+                    name,
+                    arity,
+                    fun: _,
+                } => format!("<fn {name}/{arity}>"),
+            },
         };
         write!(f, "{s}")
     }
@@ -116,16 +189,32 @@ impl PartialEq for LiteralValue {
             (LiteralValue::False, LiteralValue::False) => true,
             (LiteralValue::Nil, LiteralValue::Nil) => true,
             (
-                LiteralValue::Callable {
+                LiteralValue::Callable(LoxCallable::LoxFunction {
+                    name,
+                    arity,
+                    closure: _,
+                    params: _,
+                    body: _,
+                }),
+                LiteralValue::Callable(LoxCallable::LoxFunction {
+                    name: o_name,
+                    arity: o_arity,
+                    closure: _,
+                    params: _,
+                    body: _,
+                }),
+            ) => name == o_name && arity == o_arity,
+            (
+                LiteralValue::Callable(LoxCallable::NativeFunction {
                     name,
                     arity,
                     fun: _,
-                },
-                LiteralValue::Callable {
+                }),
+                LiteralValue::Callable(LoxCallable::NativeFunction {
                     name: o_name,
                     arity: o_arity,
                     fun: _,
-                },
+                }),
             ) => name == o_name && arity == o_arity,
             _ => false,
         }
@@ -173,202 +262,7 @@ pub enum Expr {
     },
 }
 
-impl Expr {
-    pub fn _evaluate(&self, environment: Rc<RefCell<Environment>>) -> Result<LiteralValue, String> {
-        match self {
-            Expr::Assign { name, value } => {
-                let new_value = (*value)._evaluate(environment.clone())?;
-                let success = environment
-                    .borrow_mut()
-                    .assign(&name.lexeme, new_value.clone());
-                if success {
-                    Ok(new_value)
-                } else {
-                    Err(format!("Variable {} has not been declared.", name.lexeme))
-                }
-            }
-            Expr::Call {
-                callee,
-                paren: _,
-                arguments,
-            } => {
-                let callable = (*callee)._evaluate(environment.clone())?;
-
-                match callable {
-                    LiteralValue::Callable { name, arity, fun } => {
-                        let mut arg_list = vec![];
-                        for argument in arguments.iter() {
-                            arg_list.push(argument._evaluate(environment.clone())?);
-                        }
-
-                        if arguments.len() != arity {
-                            return Err(format!(
-                                "Callable {} expected {} arguments, got {}.",
-                                name,
-                                arity,
-                                arguments.len(),
-                            ));
-                        }
-
-                        let mut argument_values = vec![];
-                        for argument in arguments {
-                            let value = argument._evaluate(environment.clone())?;
-                            argument_values.push(value);
-                        }
-
-                        Ok(fun(&argument_values))
-                    }
-                    other => Err(format!("{} is not callable.", other.to_type())),
-                }
-            }
-            Expr::Lambda {
-                paren: _,
-                arguments,
-                body,
-            } => {
-                let arity = arguments.len();
-                let environment = environment;
-                let arguments = arguments.clone();
-                let body = body.clone();
-                // let body: Vec<Stmt> = body.iter().map(|b| (*b).clone()).collect();
-
-                let fun_impl = move |args: &[LiteralValue]| {
-                    let mut lambda_int = Interpreter::for_lambda(environment.clone());
-
-                    for (i, arg) in args.iter().enumerate() {
-                        lambda_int
-                            .environment
-                            .borrow_mut()
-                            .define(arguments[i].lexeme.clone(), (*arg).clone());
-                    }
-
-                    for stmt in body.iter() {
-                        lambda_int
-                            .interpret(vec![stmt])
-                            .unwrap_or_else(|_| panic!("Evaluating field failed."));
-
-                        if let Some(value) = lambda_int.specials.get("return") {
-                            return value.clone();
-                        }
-                    }
-
-                    LiteralValue::Nil
-                };
-
-                Ok(LiteralValue::Callable {
-                    name: String::from("lambda"),
-                    arity,
-                    fun: Rc::new(fun_impl),
-                })
-            }
-            Expr::Literal { value } => Ok(value.clone()),
-            Expr::Logical {
-                left,
-                operator,
-                right,
-            } => {
-                let left = left._evaluate(environment.clone())?;
-
-                if operator.token_type == TokenType::Or {
-                    if left.is_truthy() {
-                        return Ok(left);
-                    }
-                } else if !left.is_truthy() {
-                    return Ok(left);
-                }
-
-                right._evaluate(environment)
-            }
-            Expr::Grouping { expression } => expression._evaluate(environment),
-            Expr::Unary { operator, right } => {
-                let expr = right._evaluate(environment)?;
-
-                match (&expr, operator.token_type) {
-                    (LiteralValue::Number(x), TokenType::Minus) => Ok(LiteralValue::Number(-x)),
-                    (_, TokenType::Minus) => Err(format!(
-                        "Minus operator not implemented for {}.",
-                        expr.to_type()
-                    )),
-                    (value, TokenType::Bang) => Ok(LiteralValue::from_bool(!value.is_truthy())),
-                    (_, token_type) => Err(format!("{token_type} is not a valid unary operator")),
-                }
-            }
-            Expr::Binary {
-                left,
-                operator,
-                right,
-            } => {
-                let expr_l = left._evaluate(environment.clone())?;
-                let expr_r = right._evaluate(environment)?;
-
-                match (&expr_l, operator.token_type, &expr_r) {
-                    (LiteralValue::Number(x), TokenType::Plus, LiteralValue::Number(y)) => {
-                        Ok(LiteralValue::Number(x + y))
-                    }
-                    (LiteralValue::Number(x), TokenType::Minus, LiteralValue::Number(y)) => {
-                        Ok(LiteralValue::Number(x - y))
-                    }
-                    (LiteralValue::Number(x), TokenType::Star, LiteralValue::Number(y)) => {
-                        Ok(LiteralValue::Number(x * y))
-                    }
-                    (LiteralValue::Number(x), TokenType::Slash, LiteralValue::Number(y)) => {
-                        Ok(LiteralValue::Number(x / y))
-                    }
-                    (LiteralValue::Number(x), TokenType::Greater, LiteralValue::Number(y)) => {
-                        Ok(LiteralValue::from_bool(x > y))
-                    }
-                    (LiteralValue::Number(x), TokenType::GreaterEqual, LiteralValue::Number(y)) => {
-                        Ok(LiteralValue::from_bool(x >= y))
-                    }
-                    (LiteralValue::Number(x), TokenType::Less, LiteralValue::Number(y)) => {
-                        Ok(LiteralValue::from_bool(x < y))
-                    }
-                    (LiteralValue::Number(x), TokenType::LessEqual, LiteralValue::Number(y)) => {
-                        Ok(LiteralValue::from_bool(x <= y))
-                    }
-                    (LiteralValue::Number(_), tt, LiteralValue::StringValue(_)) => {
-                        Err(format!("{tt} is not supported for String and Number"))
-                    }
-                    (LiteralValue::StringValue(_), tt, LiteralValue::Number(_)) => {
-                        Err(format!("{tt} is not supported for String and Number"))
-                    }
-                    (
-                        LiteralValue::StringValue(s1),
-                        TokenType::Plus,
-                        LiteralValue::StringValue(s2),
-                    ) => Ok(LiteralValue::StringValue(format!("{s1}{s2}"))),
-                    (
-                        LiteralValue::StringValue(s1),
-                        TokenType::Greater,
-                        LiteralValue::StringValue(s2),
-                    ) => Ok(LiteralValue::from_bool(s1 > s2)),
-                    (
-                        LiteralValue::StringValue(s1),
-                        TokenType::GreaterEqual,
-                        LiteralValue::StringValue(s2),
-                    ) => Ok(LiteralValue::from_bool(s1 >= s2)),
-                    (
-                        LiteralValue::StringValue(s1),
-                        TokenType::Less,
-                        LiteralValue::StringValue(s2),
-                    ) => Ok(LiteralValue::from_bool(s1 < s2)),
-                    (
-                        LiteralValue::StringValue(s1),
-                        TokenType::LessEqual,
-                        LiteralValue::StringValue(s2),
-                    ) => Ok(LiteralValue::from_bool(s1 <= s2)),
-                    (x, TokenType::BangEqual, y) => Ok(LiteralValue::from_bool(x != y)),
-                    (x, TokenType::EqualEqual, y) => Ok(LiteralValue::from_bool(x == y)),
-                    (x, tt, y) => Err(format!("{tt} is not supported for {x:?} and {y:?}")),
-                }
-            }
-            Expr::Variable { name } => match environment.borrow().get(&name.lexeme) {
-                Some(value) => Ok(value),
-                None => Err(format!("Variable {} has not been declared.", name.lexeme)),
-            },
-        }
-    }
-}
+impl Expr {}
 
 impl std::fmt::Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -417,6 +311,41 @@ impl std::fmt::Display for Expr {
         write!(f, "{s}")
     }
 }
+
+impl std::hash::Hash for Expr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // std::ptr::hash(self, state);
+        match self {
+            Expr::Assign { name, value: _ } => {
+                name.lexeme.hash(state);
+                // value.hash(state);
+            }
+            Expr::Call {
+                callee,
+                paren: _,
+                arguments: _,
+            } => {
+                (*callee).hash(state);
+            }
+            Expr::Variable { name } => {
+                name.lexeme.hash(state);
+                // println!("hash is {}", state.finish());
+            }
+            _ => panic!("Hash not implemented for this one."),
+        }
+        // println!("hash for {self:?} is {}", state.finish());
+    }
+}
+
+impl PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        let ptr = std::ptr::addr_of!(self);
+        let ptr2 = std::ptr::addr_of!(other);
+        ptr == ptr2
+    }
+}
+
+impl Eq for Expr {}
 
 #[cfg(test)]
 mod tests {

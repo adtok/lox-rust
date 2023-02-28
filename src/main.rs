@@ -2,11 +2,13 @@ mod environment;
 mod expression;
 mod interpreter;
 mod parser;
+mod resolver;
 mod scanner;
 mod statement;
 mod tests;
 use interpreter::Interpreter;
 use parser::Parser;
+use resolver::Resolver;
 
 use crate::scanner::*;
 use std::env;
@@ -29,6 +31,9 @@ fn run(interpreter: &mut Interpreter, contents: &str) -> Result<(), String> {
 
     let mut parser = Parser::new(tokens);
     let statements = parser.parse()?;
+
+    let mut resolver = Resolver::new(Interpreter::new());
+    resolver.resolve_many(statements.clone())?;
 
     interpreter.interpret(statements.iter().collect())?;
 
