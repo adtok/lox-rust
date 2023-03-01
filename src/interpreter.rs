@@ -9,6 +9,7 @@ use crate::statement::Stmt;
 pub struct Interpreter {
     globals: Environment,
     environment: Environment,
+    return_value: Option<LiteralValue>,
 }
 
 fn clock_impl(_args: &[LiteralValue]) -> LiteralValue {
@@ -36,6 +37,7 @@ impl Interpreter {
         Self {
             globals: Environment::new(),
             environment,
+            return_value: None,
         }
     }
 
@@ -46,6 +48,7 @@ impl Interpreter {
         Self {
             globals: Environment::new(),
             environment,
+            return_value: None,
         }
     }
 
@@ -197,10 +200,11 @@ impl Interpreter {
                     }
 
                     for stmt in body.iter() {
-                        let result = lambda_int
+                        lambda_int
                             .execute(stmt)
                             .unwrap_or_else(|_| panic!("Evaluating field failed"));
-                        if let Some(value) = result {
+                        if let Some(value) = lambda_int.return_value {
+                            lambda_int.return_value = None;
                             return value.clone();
                         }
                     }
@@ -252,18 +256,15 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<Option<LiteralValue>, String> {
+    pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<(), String> {
         for stmt in stmts {
-            let result = self.execute(stmt)?;
-            if result != None {
-                return Ok(result);
-            }
+            self.execute(stmt)?
         }
-        Ok(None)
+        Ok(())
     }
 
-    fn execute(&mut self, stmt: &Stmt) -> Result<Option<LiteralValue>, String> {
-        let result = match stmt {
+    fn execute(&mut self, stmt: &Stmt) -> Result<(), String> {
+        match stmt {
             Stmt::Block { statements } => {
                 let mut new_environment = Environment::new();
                 new_environment.enclosing = Some(Box::new(self.environment.clone()));
@@ -275,7 +276,6 @@ impl Interpreter {
             }
             Stmt::Expression { expression } => {
                 self.evaluate(expression)?;
-                None
             }
             Stmt::Function { name, params, body } => {
                 let arity = params.len();
@@ -295,11 +295,12 @@ impl Interpreter {
                     }
 
                     for item in &body {
-                        let result = closure_int.execute(item).unwrap_or_else(|msg| {
+                        closure_int.execute(item).unwrap_or_else(|msg| {
                             panic!("Evaluating failed inside {name_clone}.\n{msg}")
                         });
 
-                        if let Some(value) = result {
+                        if let Some(value) = closure_int.return_value {
+                            closure_int.return_value = None;
                             return value.clone();
                         }
                     }
@@ -314,7 +315,6 @@ impl Interpreter {
                 };
 
                 self.environment.define(name.lexeme.clone(), callable);
-                None
             }
             Stmt::If {
                 condition,
@@ -326,14 +326,11 @@ impl Interpreter {
                     self.execute(then_stmt)?
                 } else if let Some(els) = else_stmt {
                     self.execute(els)?
-                } else {
-                    None
                 }
             }
             Stmt::Print { expression } => {
                 let result = self.evaluate(expression)?;
                 println!("{result}");
-                None
             }
             Stmt::Return { keyword: _, value } => {
                 let value = if let Some(expr) = value {
@@ -341,12 +338,11 @@ impl Interpreter {
                 } else {
                     LiteralValue::Nil
                 };
-                Some(value)
+                self.return_value = Some(value);
             }
             Stmt::Var { name, initializer } => {
                 let value = self.evaluate(initializer)?;
                 self.environment.define(name.lexeme.clone(), value);
-                None
             }
             Stmt::While { condition, body } => {
                 let mut flag = self.evaluate(condition)?;
@@ -355,9 +351,8 @@ impl Interpreter {
                     self.interpret(statements)?;
                     flag = self.evaluate(condition)?;
                 }
-                None
             }
         };
-        Ok(result)
+        Ok(())
     }
 }
