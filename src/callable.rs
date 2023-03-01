@@ -48,10 +48,21 @@ impl LoxCallable {
         let result = match self {
             Self::LoxFunction {
                 name: _,
-                params: _,
-                body: _,
-                closure: _,
-            } => todo!(),
+                params,
+                body,
+                closure,
+            } => {
+                let mut environment = closure.clone();
+                for i in 0..self.arity() {
+                    environment.define(params[i].lexeme.clone(), arguments[i].clone());
+                }
+                let result = interpreter.interpret(body.iter().collect())?;
+                if let Some(return_value) = result {
+                    return_value
+                } else {
+                    LiteralValue::Nil
+                }
+            }
             Self::NativeFunction {
                 name: _,
                 arity: _,
