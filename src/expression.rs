@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::scanner::{self, Token, TokenType};
+use crate::scanner::{Token, TokenLiteral, TokenType};
 use crate::statement::Stmt;
 
 #[derive(Clone)]
@@ -23,14 +23,14 @@ impl LiteralValue {
         match token.token_type {
             TokenType::Number => {
                 let value = match token.literal {
-                    Some(scanner::LiteralValue::FValue(x)) => x,
+                    Some(TokenLiteral::FValue(x)) => x,
                     _ => panic!("Cannot be unwrapped as float"),
                 };
                 Self::Number(value)
             }
             TokenType::StringLit => {
                 let value = match token.literal {
-                    Some(scanner::LiteralValue::StringValue(s)) => s,
+                    Some(TokenLiteral::StringValue(s)) => s,
                     _ => panic!("Cannot be unwrapped as String"),
                 };
                 Self::StringValue(value)

@@ -166,7 +166,7 @@ impl Scanner {
         self.add_token_lit(token_type, None);
     }
 
-    fn add_token_lit(&mut self, token_type: TokenType, literal: Option<LiteralValue>) {
+    fn add_token_lit(&mut self, token_type: TokenType, literal: Option<TokenLiteral>) {
         let text = self.source[self.start..self.current].to_string();
 
         self.tokens.push(Token {
@@ -222,7 +222,7 @@ impl Scanner {
 
         self.add_token_lit(
             TokenType::StringLit,
-            Some(LiteralValue::StringValue(value.to_string())),
+            Some(TokenLiteral::StringValue(value.to_string())),
         );
 
         Ok(())
@@ -244,7 +244,7 @@ impl Scanner {
         let value = substring.parse::<f64>();
 
         match value {
-            Ok(value) => self.add_token_lit(TokenType::Number, Some(LiteralValue::FValue(value))),
+            Ok(value) => self.add_token_lit(TokenType::Number, Some(TokenLiteral::FValue(value))),
             Err(_) => return Err(format!("Could not parse number: {substring}")),
         }
 
@@ -267,7 +267,7 @@ impl Scanner {
 }
 
 #[derive(Debug, Clone)]
-pub enum LiteralValue {
+pub enum TokenLiteral {
     FValue(f64),
     StringValue(String),
 }
@@ -276,7 +276,7 @@ pub enum LiteralValue {
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
-    pub literal: Option<LiteralValue>,
+    pub literal: Option<TokenLiteral>,
     pub line: usize,
 }
 
@@ -398,7 +398,7 @@ mod tests {
 
         assert_eq!(scanner.tokens[0].token_type, TokenType::StringLit);
         match scanner.tokens[0].literal.as_ref().unwrap() {
-            LiteralValue::StringValue(s) => assert_eq!(s, "Hello, world!"),
+            TokenLiteral::StringValue(s) => assert_eq!(s, "Hello, world!"),
             _ => panic!("Incorrect LiteralValue type"),
         }
         assert_eq!(scanner.tokens[1].token_type, TokenType::Eof);
@@ -425,7 +425,7 @@ mod tests {
 
         assert_eq!(scanner.tokens[0].token_type, TokenType::StringLit);
         match scanner.tokens[0].literal.as_ref().unwrap() {
-            LiteralValue::StringValue(s) => assert_eq!(s, "Hello,\nworld\n!"),
+            TokenLiteral::StringValue(s) => assert_eq!(s, "Hello,\nworld\n!"),
             _ => panic!("Incorrect LiteralValue type"),
         }
         assert_eq!(scanner.tokens[1].token_type, TokenType::Eof);
@@ -441,19 +441,19 @@ mod tests {
 
         assert_eq!(scanner.tokens[0].token_type, TokenType::Number);
         match scanner.tokens[0].literal {
-            Some(LiteralValue::FValue(x)) => assert_eq!(x, 123.45),
+            Some(TokenLiteral::FValue(x)) => assert_eq!(x, 123.45),
             _ => panic!("Incorrect literal type"),
         }
 
         assert_eq!(scanner.tokens[1].token_type, TokenType::Number);
         match scanner.tokens[1].literal {
-            Some(LiteralValue::FValue(x)) => assert_eq!(x, 67.0),
+            Some(TokenLiteral::FValue(x)) => assert_eq!(x, 67.0),
             _ => panic!("Incorrect literal type"),
         }
 
         assert_eq!(scanner.tokens[2].token_type, TokenType::Number);
         match scanner.tokens[2].literal {
-            Some(LiteralValue::FValue(x)) => assert_eq!(x, 8.0),
+            Some(TokenLiteral::FValue(x)) => assert_eq!(x, 8.0),
             _ => panic!("Incorrect literal type"),
         }
 
