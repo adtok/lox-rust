@@ -1,9 +1,19 @@
 use std::rc::Rc;
 
-use crate::{expression::LiteralValue, interpreter::Interpreter};
+use crate::environment::Environment;
+use crate::expression::LiteralValue;
+use crate::interpreter::Interpreter;
+use crate::scanner::Token;
+use crate::statement::Stmt;
 
 #[derive(Clone)]
 pub enum LoxCallable {
+    LoxFunction {
+        name: String,
+        params: Vec<Token>,
+        body: Vec<Stmt>,
+        closure: Environment,
+    },
     NativeFunction {
         name: String,
         arity: usize,
@@ -16,6 +26,12 @@ pub type CallableFunction = Rc<dyn Fn(&[LiteralValue]) -> LiteralValue>;
 impl LoxCallable {
     pub fn arity(&self) -> usize {
         match self {
+            Self::LoxFunction {
+                name: _,
+                params,
+                body: _,
+                closure: _,
+            } => params.len(),
             Self::NativeFunction {
                 name: _,
                 arity,
@@ -30,6 +46,12 @@ impl LoxCallable {
         arguments: Vec<LiteralValue>,
     ) -> Result<LiteralValue, String> {
         let result = match self {
+            Self::LoxFunction {
+                name: _,
+                params: _,
+                body: _,
+                closure: _,
+            } => todo!(),
             Self::NativeFunction {
                 name: _,
                 arity: _,
@@ -41,6 +63,12 @@ impl LoxCallable {
 
     pub fn name(&self) -> String {
         match self {
+            Self::LoxFunction {
+                name,
+                params: _,
+                body: _,
+                closure: _,
+            } => name.clone(),
             Self::NativeFunction {
                 name,
                 arity: _,
