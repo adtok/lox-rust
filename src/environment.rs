@@ -1,12 +1,11 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use crate::expression::LiteralValue;
 
+#[derive(Debug, Clone)]
 pub struct Environment {
     values: HashMap<String, LiteralValue>,
-    pub enclosing: Option<Rc<RefCell<Environment>>>,
+    pub enclosing: Option<Box<Environment>>,
 }
 
 impl Environment {
@@ -27,7 +26,7 @@ impl Environment {
 
         match (old_value, &self.enclosing) {
             (Some(val), _) => Some(val.clone()),
-            (_, Some(env)) => env.borrow().get(name),
+            (_, Some(env)) => env.get(name),
             (_, _) => None,
         }
     }
@@ -35,12 +34,12 @@ impl Environment {
     pub fn assign(&mut self, name: &str, value: LiteralValue) -> bool {
         let old_value = self.values.get(name);
 
-        match (old_value, &self.enclosing) {
+        match (old_value, &mut self.enclosing) {
             (Some(_), _) => {
                 self.values.insert(String::from(name), value);
                 true
             }
-            (None, Some(env)) => env.borrow_mut().assign(name, value),
+            (None, Some(env)) => env.assign(name, value),
             (None, None) => false,
         }
     }

@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use crate::callable::LoxCallable;
 use crate::scanner::{Token, TokenLiteral, TokenType};
 use crate::statement::Stmt;
 
@@ -10,11 +11,12 @@ pub enum LiteralValue {
     True,
     False,
     Nil,
-    Callable {
+    OldCallable {
         name: String,
         arity: usize,
         fun: CallableFunction,
     },
+    Callable(LoxCallable),
 }
 pub type CallableFunction = Rc<dyn Fn(&[LiteralValue]) -> LiteralValue>;
 
@@ -57,11 +59,12 @@ impl LiteralValue {
             LiteralValue::True => "Boolean",
             LiteralValue::False => "Boolean",
             LiteralValue::Nil => "nil",
-            LiteralValue::Callable {
+            LiteralValue::OldCallable {
                 name: _,
                 arity: _,
                 fun: _,
             } => "Callable",
+            LiteralValue::Callable(_) => "Callable",
         }
     }
 
@@ -72,11 +75,12 @@ impl LiteralValue {
             LiteralValue::True => true,
             LiteralValue::False => false,
             LiteralValue::Nil => false,
-            LiteralValue::Callable {
+            LiteralValue::OldCallable {
                 name: _,
                 arity: _,
                 fun: _,
             } => panic!("Cannot use a callable as a truthy value"),
+            LiteralValue::Callable(_) => panic!("Cannot use callable as truthy value"),
         }
     }
 }
@@ -89,11 +93,12 @@ impl std::fmt::Display for LiteralValue {
             LiteralValue::True => String::from("true"),
             LiteralValue::False => String::from("false"),
             LiteralValue::Nil => String::from("nil"),
-            LiteralValue::Callable {
+            LiteralValue::OldCallable {
                 name,
                 arity,
                 fun: _,
             } => format!("<fn {name}/{arity}>"),
+            LiteralValue::Callable(callable) => callable.to_string(),
         };
         write!(f, "{s}")
     }
@@ -114,12 +119,12 @@ impl PartialEq for LiteralValue {
             (LiteralValue::False, LiteralValue::False) => true,
             (LiteralValue::Nil, LiteralValue::Nil) => true,
             (
-                LiteralValue::Callable {
+                LiteralValue::OldCallable {
                     name,
                     arity,
                     fun: _,
                 },
-                LiteralValue::Callable {
+                LiteralValue::OldCallable {
                     name: o_name,
                     arity: o_arity,
                     fun: _,
