@@ -9,7 +9,7 @@ use crate::statement::Stmt;
 pub struct Interpreter {
     globals: Environment,
     environment: Environment,
-    return_value: Option<LiteralValue>,
+    pub return_value: Option<LiteralValue>,
 }
 
 fn clock_impl(_args: &[LiteralValue]) -> LiteralValue {
@@ -30,7 +30,7 @@ impl Interpreter {
             LiteralValue::Callable(LoxCallable::NativeFunction {
                 name: String::from("clock"),
                 arity: 0,
-                fun: Rc::new(clock_impl),
+                fun: clock_impl,
             }),
         );
 

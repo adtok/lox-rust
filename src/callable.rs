@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::environment::Environment;
 use crate::expression::LiteralValue;
 use crate::interpreter::Interpreter;
@@ -21,7 +19,7 @@ pub enum LoxCallable {
     },
 }
 
-pub type CallableFunction = Rc<dyn Fn(&[LiteralValue]) -> LiteralValue>;
+pub type CallableFunction = fn(&[LiteralValue]) -> LiteralValue;
 
 impl LoxCallable {
     pub fn arity(&self) -> usize {
@@ -56,8 +54,9 @@ impl LoxCallable {
                 for i in 0..self.arity() {
                     environment.define(params[i].lexeme.clone(), arguments[i].clone());
                 }
-                let result = interpreter.interpret(body.iter().collect())?;
-                if let Some(return_value) = result {
+                interpreter.interpret(body.iter().collect())?;
+                if let Some(return_value) = interpreter.return_value.clone() {
+                    interpreter.return_value = None;
                     return_value
                 } else {
                     LiteralValue::Nil
