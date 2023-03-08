@@ -24,8 +24,8 @@ impl Environment {
         }
     }
 
-    pub fn define(&mut self, name: &Token, value: LiteralValue) {
-        self.values.insert(name.lexeme.clone(), value);
+    pub fn define(&mut self, name: Token, value: LiteralValue) {
+        self.values.insert(name.lexeme, value);
     }
 
     // Should this return a result?
@@ -39,16 +39,18 @@ impl Environment {
         }
     }
 
-    pub fn assign(&mut self, name: &str, value: LiteralValue) -> bool {
-        let old_value = self.values.get(name);
+    pub fn assign(&mut self, token: Token, value: &LiteralValue) -> Result<(), String> {
+        if self.values.contains_key(&token.lexeme) {
+            self.define(token, value.clone());
+            return Ok(());
+        }
 
-        match (old_value, &mut self.enclosing) {
-            (Some(_), _) => {
-                self.values.insert(String::from(name), value);
-                true
-            }
-            (None, Some(env)) => env.assign(name, value),
-            (None, None) => false,
+        match &mut self.enclosing {
+            Some(enclosing) => enclosing.assign(token, value),
+            None => Err(format!(
+                "Attempting to assign to variable '{}' that does not exist",
+                token.lexeme.clone()
+            )),
         }
     }
 }

@@ -19,7 +19,7 @@ impl Interpreter {
 
         let clock_token = Token::global("clock");
         globals.define(
-            &clock_token,
+            clock_token.clone(),
             LiteralValue::Callable(LoxCallable::NativeFunction {
                 name: clock_token.lexeme.clone(),
                 arity: 0,
@@ -36,21 +36,8 @@ impl Interpreter {
 
         Self {
             lambda_counter: 0,
-            environment: Environment::new(),
-            globals,
-            return_value: None,
-        }
-    }
-
-    // probs deprecate this
-    pub fn from_env(parent: Box<Environment>) -> Self {
-        let mut environment = Environment::new();
-        environment.enclosing = Some(parent);
-
-        Self {
-            lambda_counter: 0,
-            environment: Environment::new(),
             globals: Environment::new(),
+            environment: globals,
             return_value: None,
         }
     }
@@ -59,13 +46,10 @@ impl Interpreter {
         match expr {
             Expr::Assign { name, value } => {
                 let new_value = self.evaluate(value)?;
-                let success = self.environment.assign(&name.lexeme, new_value.clone());
 
-                if success {
-                    Ok(new_value)
-                } else {
-                    Err(format!("Variable {} has not been declared.", name.lexeme))
-                }
+                self.environment.assign(name.clone(), &new_value)?;
+
+                Ok(new_value)
             }
             Expr::Binary {
                 left,
@@ -161,19 +145,11 @@ impl Interpreter {
                     body: body.clone(),
                 });
 
-                match maybe_err {
+                let result = match maybe_err {
                     Ok(_) => self.evaluate(&Expr::Variable { name }),
                     Err(msg) => Err(msg),
-                }
-
-                // let lox_fun = LoxCallable::LoxFunction {
-                //     name: name.clone(),
-                //     parameters: params.clone(),
-                //     body: body.clone(),
-                //     closure: self.environment.clone(),
-                // };
-
-                // Ok(LiteralValue::Callable(lox_fun))
+                };
+                result
             }
             Expr::Literal { value } => Ok(value.clone()),
             Expr::Logical {
@@ -256,7 +232,6 @@ impl Interpreter {
         if self.return_value.is_some() {
             return Ok(());
         }
-
         match stmt {
             Stmt::Block { statements } => {
                 self.environment = Environment::with_enclosing(self.environment.clone());
@@ -281,7 +256,7 @@ impl Interpreter {
                     closure: self.environment.clone(),
                 });
 
-                self.environment.define(&name, callable);
+                self.environment.define(name.clone(), callable);
             }
             Stmt::If {
                 condition,
@@ -309,7 +284,7 @@ impl Interpreter {
             }
             Stmt::Var { name, initializer } => {
                 let value = self.evaluate(initializer)?;
-                self.environment.define(&name, value);
+                self.environment.define(name.clone(), value);
             }
             Stmt::While { condition, body } => {
                 let mut flag = self.evaluate(condition)?;

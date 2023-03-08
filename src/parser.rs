@@ -299,6 +299,7 @@ impl Parser {
             TokenType::LeftBrace,
             &format!("Expect '{{' before {kind:?} body."),
         )?;
+        println!("Here in parser");
         let body = match self.block_statement()? {
             Stmt::Block { statements } => statements,
             _ => panic!("Found something other than a block"),
