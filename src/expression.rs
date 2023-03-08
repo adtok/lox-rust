@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::callable::LoxCallable;
 use crate::scanner::{Token, TokenLiteral, TokenType};
 use crate::statement::Stmt;
@@ -13,7 +11,6 @@ pub enum LiteralValue {
     Nil,
     Callable(LoxCallable),
 }
-pub type CallableFunction = Rc<dyn Fn(&[LiteralValue]) -> LiteralValue>;
 
 impl LiteralValue {
     pub fn from_token(token: Token) -> Self {

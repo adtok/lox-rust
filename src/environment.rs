@@ -49,7 +49,7 @@ impl Environment {
             Some(enclosing) => enclosing.assign(token, value),
             None => Err(format!(
                 "Attempting to assign to variable '{}' that does not exist",
-                token.lexeme.clone()
+                token.lexeme
             )),
         }
     }

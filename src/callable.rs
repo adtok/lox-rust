@@ -27,7 +27,7 @@ impl LoxCallable {
     pub fn arity(&self) -> usize {
         match self {
             Self::LoxFunction { parameters, .. } => parameters.len(),
-            Self::NativeFunction { arity, .. } => arity.clone(),
+            Self::NativeFunction { arity, .. } => *arity,
         }
     }
 
@@ -54,7 +54,7 @@ impl LoxCallable {
 
                 let mut env = closure.clone();
                 env.values.extend(saved_env.values.clone());
-                env.values.extend(args_env.clone());
+                env.values.extend(args_env);
 
                 let env = env;
                 interpreter.environment = env;
@@ -68,7 +68,7 @@ impl LoxCallable {
                     None => Ok(LiteralValue::Nil),
                 }
             }
-            Self::NativeFunction { fun, .. } => fun(&interpreter, arguments),
+            Self::NativeFunction { fun, .. } => fun(interpreter, arguments),
         }
     }
 

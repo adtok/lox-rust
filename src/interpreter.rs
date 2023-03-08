@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::callable::LoxCallable;
 use crate::environment::Environment;
 use crate::expression::{Expr, LiteralValue};
@@ -21,7 +19,7 @@ impl Interpreter {
         globals.define(
             clock_token.clone(),
             LiteralValue::Callable(LoxCallable::NativeFunction {
-                name: clock_token.lexeme.clone(),
+                name: clock_token.lexeme,
                 arity: 0,
                 fun: |_, _| {
                     let now = std::time::SystemTime::now()
@@ -145,11 +143,10 @@ impl Interpreter {
                     body: body.clone(),
                 });
 
-                let result = match maybe_err {
+                match maybe_err {
                     Ok(_) => self.evaluate(&Expr::Variable { name }),
                     Err(msg) => Err(msg),
-                };
-                result
+                }
             }
             Expr::Literal { value } => Ok(value.clone()),
             Expr::Logical {
