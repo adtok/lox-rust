@@ -234,7 +234,7 @@ impl Parser {
 
         Ok(Expr::Lambda {
             paren,
-            arguments: params,
+            params,
             body,
         })
     }

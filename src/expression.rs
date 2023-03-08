@@ -83,6 +83,13 @@ impl LiteralValue {
             LiteralValue::Callable(_) => panic!("Cannot use callable as truthy value"),
         }
     }
+
+    pub fn as_callable(&self) -> Option<LoxCallable> {
+        match self {
+            LiteralValue::Callable(callable) => Some(callable.clone()),
+            _ => None,
+        }
+    }
 }
 
 impl std::fmt::Display for LiteralValue {
@@ -156,7 +163,7 @@ pub enum Expr {
     },
     Lambda {
         paren: Token,
-        arguments: Vec<Token>,
+        params: Vec<Token>,
         body: Vec<Stmt>,
     },
     Literal {
@@ -198,9 +205,9 @@ impl std::fmt::Display for Expr {
             Expr::Grouping { expression } => format!("(group {expression})"),
             Expr::Lambda {
                 paren: _,
-                arguments,
+                params,
                 body: _,
-            } => format!("anon/{}", arguments.len()),
+            } => format!("anon/{}", params.len()),
             Expr::Literal { value } => format!("{value}"),
             Expr::Logical {
                 left,

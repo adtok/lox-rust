@@ -7,48 +7,50 @@ use crate::scanner::{Token, TokenType};
 use crate::statement::Stmt;
 
 pub struct Interpreter {
-    globals: Environment,
-    environment: Environment,
+    pub lambda_counter: usize,
+    pub globals: Environment,
+    pub environment: Environment,
     pub return_value: Option<LiteralValue>,
-}
-
-fn clock_impl(_args: &[LiteralValue]) -> LiteralValue {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .expect("Could not get system time.")
-        .as_millis();
-
-    LiteralValue::Number(now as f64 / 1000.0)
 }
 
 impl Interpreter {
     pub fn new() -> Self {
-        let mut environment = Environment::new();
+        let mut globals = Environment::new();
 
         let clock_token = Token::global("clock");
-        environment.define(
+        globals.define(
             &clock_token,
             LiteralValue::Callable(LoxCallable::NativeFunction {
                 name: clock_token.lexeme.clone(),
                 arity: 0,
-                fun: clock_impl,
+                fun: |_, _| {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .expect("Could not get system time.")
+                        .as_millis();
+
+                    Ok(LiteralValue::Number(now as f64 / 1000.0))
+                },
             }),
         );
 
         Self {
-            globals: Environment::new(),
-            environment,
+            lambda_counter: 0,
+            environment: Environment::new(),
+            globals,
             return_value: None,
         }
     }
 
+    // probs deprecate this
     pub fn from_env(parent: Box<Environment>) -> Self {
         let mut environment = Environment::new();
         environment.enclosing = Some(parent);
 
         Self {
+            lambda_counter: 0,
+            environment: Environment::new(),
             globals: Environment::new(),
-            environment,
             return_value: None,
         }
     }
@@ -138,84 +140,40 @@ impl Interpreter {
                 callee,
                 paren: _,
                 arguments,
-            } => {
-                let callee_literal = self.evaluate(callee)?;
-
-                if let LiteralValue::OldCallable { name, arity, fun } = callee_literal {
-                    let mut arg_list = vec![];
-                    for argument in arguments.iter() {
-                        arg_list.push(self.evaluate(argument)?);
-                    }
-
-                    if arguments.len() != arity {
-                        Err(format!(
-                            "Callable {name} expected {arity} arguments, got {}.",
-                            arguments.len()
-                        ))
-                    } else {
-                        let mut argument_values = vec![];
-                        for argument in arguments {
-                            let value = self.evaluate(argument)?;
-                            argument_values.push(value);
-                        }
-
-                        Ok(fun(&argument_values))
-                    }
-                } else if let LiteralValue::Callable(callable) = callee_literal {
-                    let mut arg_list = vec![];
-                    for argument in arguments.iter() {
-                        arg_list.push(self.evaluate(argument)?);
-                    }
-                    if arg_list.len() != callable.arity() {
-                        Err(format!(
-                            "Callable {} expected {} arguments, got {}",
-                            callable.name(),
-                            callable.arity(),
-                            arg_list.len()
-                        ))
-                    } else {
-                        Ok(callable.call(self, arg_list)?)
-                    }
-                } else {
-                    Err(format!("{} is not callable", callee_literal.to_type()))
-                }
-            }
+            } => self.call(callee, arguments),
             Expr::Grouping { expression } => self.evaluate(expression),
             Expr::Lambda {
-                paren: _,
-                arguments,
+                paren,
+                params,
                 body,
             } => {
-                let arity = arguments.len();
-                let arguments = arguments.clone();
-                let body = body.clone();
-                let environment = self.environment.clone();
-
-                let fun_impl = move |args: &[LiteralValue]| {
-                    let mut lambda_int = Interpreter::from_env(Box::new(environment.clone()));
-
-                    for (i, arg) in args.iter().enumerate() {
-                        lambda_int.environment.define(&arguments[i], (*arg).clone())
-                    }
-
-                    for stmt in body.iter() {
-                        lambda_int
-                            .execute(stmt)
-                            .unwrap_or_else(|_| panic!("Evaluating field failed"));
-                        if let Some(value) = lambda_int.return_value {
-                            lambda_int.return_value = None;
-                            return value.clone();
-                        }
-                    }
-
-                    LiteralValue::Nil
+                let lambda_sym = self.lambda_name();
+                let name = Token {
+                    token_type: TokenType::Identifier,
+                    lexeme: lambda_sym,
+                    literal: None,
+                    line: paren.line,
                 };
 
-                Ok(LiteralValue::OldCallable {
-                    name: String::from("lambda"),
-                    arity,
-                    fun: Rc::new(fun_impl),
-                })
+                let maybe_err = self.execute(&Stmt::Function {
+                    name: name.clone(),
+                    params: params.clone(),
+                    body: body.clone(),
+                });
+
+                match maybe_err {
+                    Ok(_) => self.evaluate(&Expr::Variable { name }),
+                    Err(msg) => Err(msg),
+                }
+
+                // let lox_fun = LoxCallable::LoxFunction {
+                //     name: name.clone(),
+                //     parameters: params.clone(),
+                //     body: body.clone(),
+                //     closure: self.environment.clone(),
+                // };
+
+                // Ok(LiteralValue::Callable(lox_fun))
             }
             Expr::Literal { value } => Ok(value.clone()),
             Expr::Logical {
@@ -255,7 +213,39 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<(), String> {
+    fn lambda_name(&mut self) -> String {
+        let res = format!("__lambda_{}", self.lambda_counter);
+        self.lambda_counter += 1;
+        res
+    }
+
+    fn call(&mut self, callee_expr: &Expr, arg_exprs: &[Expr]) -> Result<LiteralValue, String> {
+        let callee = self.evaluate(callee_expr)?;
+
+        if let Some(callable) = callee.as_callable() {
+            let maybe_args: Result<Vec<_>, _> =
+                arg_exprs.iter().map(|arg| self.evaluate(arg)).collect();
+            match maybe_args {
+                Ok(args) => {
+                    if args.len() != callable.arity() {
+                        Err(format!(
+                            "Call for '{}' expected {} args, got {}",
+                            callable.name(),
+                            callable.arity(),
+                            args.len()
+                        ))
+                    } else {
+                        callable.call(self, &args)
+                    }
+                }
+                Err(msg) => Err(msg),
+            }
+        } else {
+            Err(format!("Attempted to call non-callable '{callee}'"))
+        }
+    }
+
+    pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<(), String> {
         for stmt in stmts {
             self.execute(stmt)?
         }
@@ -263,53 +253,33 @@ impl Interpreter {
     }
 
     fn execute(&mut self, stmt: &Stmt) -> Result<(), String> {
+        if self.return_value.is_some() {
+            return Ok(());
+        }
+
         match stmt {
             Stmt::Block { statements } => {
-                let mut new_environment = Environment::new();
-                new_environment.enclosing = Some(Box::new(self.environment.clone()));
-                let old_environment = self.environment.clone();
-                self.environment = new_environment;
-                let block_result = self.interpret(statements.iter().collect());
-                self.environment = old_environment;
-                block_result?
+                self.environment = Environment::with_enclosing(self.environment.clone());
+                for statement in statements.iter() {
+                    self.execute(statement)?;
+                }
+
+                if let Some(enclosing) = self.environment.enclosing.clone() {
+                    self.environment = *enclosing
+                } else {
+                    panic!("impossible to reach here");
+                }
             }
             Stmt::Expression { expression } => {
                 self.evaluate(expression)?;
             }
             Stmt::Function { name, params, body } => {
-                let arity = params.len();
-
-                let params: Vec<Token> = params.iter().map(|t| (*t).clone()).collect();
-                let body: Vec<Stmt> = body.iter().map(|b| (*b).clone()).collect();
-                let name_clone = name.lexeme.clone();
-
-                let parent_env = self.environment.clone();
-
-                let fun_impl = move |args: &[LiteralValue]| {
-                    let mut closure_int = Interpreter::from_env(Box::new(parent_env.clone()));
-                    for (i, arg) in args.iter().enumerate() {
-                        closure_int.environment.define(&params[i], (*arg).clone());
-                    }
-
-                    for item in &body {
-                        closure_int.execute(item).unwrap_or_else(|msg| {
-                            panic!("Evaluating failed inside {name_clone}.\n{msg}")
-                        });
-
-                        if let Some(value) = closure_int.return_value {
-                            closure_int.return_value = None;
-                            return value.clone();
-                        }
-                    }
-
-                    LiteralValue::Nil
-                };
-
-                let callable = LiteralValue::OldCallable {
+                let callable = LiteralValue::Callable(LoxCallable::LoxFunction {
                     name: name.lexeme.clone(),
-                    arity,
-                    fun: Rc::new(fun_impl),
-                };
+                    parameters: params.clone(),
+                    body: body.clone(),
+                    closure: self.environment.clone(),
+                });
 
                 self.environment.define(&name, callable);
             }
@@ -344,8 +314,7 @@ impl Interpreter {
             Stmt::While { condition, body } => {
                 let mut flag = self.evaluate(condition)?;
                 while flag.is_truthy() {
-                    let statements: Vec<&Stmt> = vec![body.as_ref()];
-                    self.interpret(statements)?;
+                    self.execute(body)?;
                     flag = self.evaluate(condition)?;
                 }
             }

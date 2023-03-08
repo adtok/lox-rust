@@ -5,7 +5,7 @@ use crate::scanner::Token;
 
 #[derive(Debug, Clone)]
 pub struct Environment {
-    values: HashMap<String, LiteralValue>,
+    pub values: HashMap<String, LiteralValue>,
     pub enclosing: Option<Box<Environment>>,
 }
 

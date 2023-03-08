@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::environment::Environment;
 use crate::expression::LiteralValue;
 use crate::interpreter::Interpreter;
@@ -8,7 +10,7 @@ use crate::statement::Stmt;
 pub enum LoxCallable {
     LoxFunction {
         name: String,
-        params: Vec<Token>,
+        parameters: Vec<Token>,
         body: Vec<Stmt>,
         closure: Environment,
     },
@@ -19,71 +21,61 @@ pub enum LoxCallable {
     },
 }
 
-pub type CallableFunction = fn(&[LiteralValue]) -> LiteralValue;
+pub type CallableFunction = fn(&Interpreter, &[LiteralValue]) -> Result<LiteralValue, String>;
 
 impl LoxCallable {
     pub fn arity(&self) -> usize {
         match self {
-            Self::LoxFunction {
-                name: _,
-                params,
-                body: _,
-                closure: _,
-            } => params.len(),
-            Self::NativeFunction {
-                name: _,
-                arity,
-                fun: _,
-            } => arity.clone(),
+            Self::LoxFunction { parameters, .. } => parameters.len(),
+            Self::NativeFunction { arity, .. } => arity.clone(),
         }
     }
 
     pub fn call(
         &self,
         interpreter: &mut Interpreter,
-        arguments: Vec<LiteralValue>,
+        arguments: &[LiteralValue],
     ) -> Result<LiteralValue, String> {
-        let result = match self {
+        match self {
             Self::LoxFunction {
                 name: _,
-                params,
+                parameters,
                 body,
                 closure,
             } => {
-                let mut environment = closure.clone();
-                for i in 0..self.arity() {
-                    environment.define(&params[i], arguments[i].clone());
-                }
-                interpreter.interpret(body.iter().collect())?;
-                if let Some(return_value) = interpreter.return_value.clone() {
-                    interpreter.return_value = None;
-                    return_value
-                } else {
-                    LiteralValue::Nil
+                let args_env: HashMap<_, _> = parameters
+                    .iter()
+                    .zip(arguments.iter())
+                    .map(|(param, arg)| (param.lexeme.clone(), arg.clone()))
+                    .collect();
+
+                let saved_env = interpreter.environment.clone();
+                let saved_return_value = interpreter.return_value.clone();
+
+                let mut env = closure.clone();
+                env.values.extend(saved_env.values.clone());
+                env.values.extend(args_env.clone());
+
+                let env = env;
+                interpreter.environment = env;
+                interpreter.interpret(body)?;
+                let return_value = interpreter.return_value.clone();
+
+                interpreter.environment = saved_env;
+                interpreter.return_value = saved_return_value;
+                match return_value {
+                    Some(val) => Ok(val),
+                    None => Ok(LiteralValue::Nil),
                 }
             }
-            Self::NativeFunction {
-                name: _,
-                arity: _,
-                fun,
-            } => fun(&arguments),
-        };
-        Ok(result)
+            Self::NativeFunction { fun, .. } => fun(&interpreter, arguments),
+        }
     }
 
     pub fn name(&self) -> String {
         match self {
-            Self::LoxFunction {
-                name,
-                params: _,
-                body: _,
-                closure: _,
-            } => name.clone(),
-            Self::NativeFunction {
-                name,
-                arity: _,
-                fun: _,
-            } => name.clone(),
+            Self::LoxFunction { name, .. } => name.clone(),
+            Self::NativeFunction { name, .. } => name.clone(),
         }
     }
 }
