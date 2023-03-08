@@ -11,11 +11,6 @@ pub enum LiteralValue {
     True,
     False,
     Nil,
-    OldCallable {
-        name: String,
-        arity: usize,
-        fun: CallableFunction,
-    },
     Callable(LoxCallable),
 }
 pub type CallableFunction = Rc<dyn Fn(&[LiteralValue]) -> LiteralValue>;
@@ -59,11 +54,6 @@ impl LiteralValue {
             LiteralValue::True => "Boolean",
             LiteralValue::False => "Boolean",
             LiteralValue::Nil => "nil",
-            LiteralValue::OldCallable {
-                name: _,
-                arity: _,
-                fun: _,
-            } => "Callable",
             LiteralValue::Callable(_) => "Callable",
         }
     }
@@ -75,11 +65,6 @@ impl LiteralValue {
             LiteralValue::True => true,
             LiteralValue::False => false,
             LiteralValue::Nil => false,
-            LiteralValue::OldCallable {
-                name: _,
-                arity: _,
-                fun: _,
-            } => panic!("Cannot use a callable as a truthy value"),
             LiteralValue::Callable(_) => panic!("Cannot use callable as truthy value"),
         }
     }
@@ -100,11 +85,6 @@ impl std::fmt::Display for LiteralValue {
             LiteralValue::True => String::from("true"),
             LiteralValue::False => String::from("false"),
             LiteralValue::Nil => String::from("nil"),
-            LiteralValue::OldCallable {
-                name,
-                arity,
-                fun: _,
-            } => format!("<fn {name}/{arity}>"),
             LiteralValue::Callable(callable) => callable.to_string(),
         };
         write!(f, "{s}")
@@ -125,18 +105,9 @@ impl PartialEq for LiteralValue {
             (LiteralValue::True, LiteralValue::True) => true,
             (LiteralValue::False, LiteralValue::False) => true,
             (LiteralValue::Nil, LiteralValue::Nil) => true,
-            (
-                LiteralValue::OldCallable {
-                    name,
-                    arity,
-                    fun: _,
-                },
-                LiteralValue::OldCallable {
-                    name: o_name,
-                    arity: o_arity,
-                    fun: _,
-                },
-            ) => name == o_name && arity == o_arity,
+            (LiteralValue::Callable(c1), LiteralValue::Callable(c2)) => {
+                c1.name() == c2.name() && c1.arity() == c2.arity()
+            }
             _ => false,
         }
     }
