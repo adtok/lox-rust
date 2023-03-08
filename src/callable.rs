@@ -52,7 +52,7 @@ impl LoxCallable {
             } => {
                 let mut environment = closure.clone();
                 for i in 0..self.arity() {
-                    environment.define(params[i].lexeme.clone(), arguments[i].clone());
+                    environment.define(&params[i], arguments[i].clone());
                 }
                 interpreter.interpret(body.iter().collect())?;
                 if let Some(return_value) = interpreter.return_value.clone() {

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+// TODO: Add lambda
 
 fn is_digit(ch: char) -> bool {
     let uch = ch as u8;
@@ -278,6 +279,17 @@ pub struct Token {
     pub lexeme: String,
     pub literal: Option<TokenLiteral>,
     pub line: usize,
+}
+
+impl Token {
+    pub fn global(name: &str) -> Self {
+        Self {
+            lexeme: name.to_string(),
+            token_type: TokenType::Identifier,
+            line: 0,
+            literal: None,
+        }
+    }
 }
 
 impl std::fmt::Display for Token {

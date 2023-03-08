@@ -25,10 +25,11 @@ impl Interpreter {
     pub fn new() -> Self {
         let mut environment = Environment::new();
 
+        let clock_token = Token::global("clock");
         environment.define(
-            String::from("clock"),
+            &clock_token,
             LiteralValue::Callable(LoxCallable::NativeFunction {
-                name: String::from("clock"),
+                name: clock_token.lexeme.clone(),
                 arity: 0,
                 fun: clock_impl,
             }),
@@ -194,9 +195,7 @@ impl Interpreter {
                     let mut lambda_int = Interpreter::from_env(Box::new(environment.clone()));
 
                     for (i, arg) in args.iter().enumerate() {
-                        lambda_int
-                            .environment
-                            .define(arguments[i].lexeme.clone(), (*arg).clone())
+                        lambda_int.environment.define(&arguments[i], (*arg).clone())
                     }
 
                     for stmt in body.iter() {
@@ -289,9 +288,7 @@ impl Interpreter {
                 let fun_impl = move |args: &[LiteralValue]| {
                     let mut closure_int = Interpreter::from_env(Box::new(parent_env.clone()));
                     for (i, arg) in args.iter().enumerate() {
-                        closure_int
-                            .environment
-                            .define(params[i].lexeme.clone(), (*arg).clone());
+                        closure_int.environment.define(&params[i], (*arg).clone());
                     }
 
                     for item in &body {
@@ -314,7 +311,7 @@ impl Interpreter {
                     fun: Rc::new(fun_impl),
                 };
 
-                self.environment.define(name.lexeme.clone(), callable);
+                self.environment.define(&name, callable);
             }
             Stmt::If {
                 condition,
@@ -342,7 +339,7 @@ impl Interpreter {
             }
             Stmt::Var { name, initializer } => {
                 let value = self.evaluate(initializer)?;
-                self.environment.define(name.lexeme.clone(), value);
+                self.environment.define(&name, value);
             }
             Stmt::While { condition, body } => {
                 let mut flag = self.evaluate(condition)?;

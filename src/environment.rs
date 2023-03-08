@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::expression::LiteralValue;
+use crate::scanner::Token;
 
 #[derive(Debug, Clone)]
 pub struct Environment {
@@ -16,8 +17,15 @@ impl Environment {
         }
     }
 
-    pub fn define(&mut self, name: String, value: LiteralValue) {
-        self.values.insert(name, value);
+    pub fn with_enclosing(enclosing: Environment) -> Environment {
+        Self {
+            values: HashMap::new(),
+            enclosing: Some(Box::new(enclosing)),
+        }
+    }
+
+    pub fn define(&mut self, name: &Token, value: LiteralValue) {
+        self.values.insert(name.lexeme.clone(), value);
     }
 
     // Should this return a result?
